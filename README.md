@@ -45,6 +45,27 @@ instruction can be written without reading anything:
 
 That is the use case this project is built for. Not "fix this bug."
 
+## When not to use it
+
+**Exploratory work.** "Find why this crashes" is not an instruction Bifrost
+can execute — it needs to know which symbols to touch before it starts.
+
+**Single small edits.** The token arithmetic is marginal, and we say so
+([RF-4](docs/critical-review.md)). Use your agent's normal edit tool.
+
+**Latency-sensitive loops.** ~2.6 s per block.
+
+**Anything that is not PHP or Python.**
+
+**Cross-file refactors where one edit's shape depends on another's outcome.**
+`patch_group` gives atomicity, not sequencing.
+
+**Codebases with no way of telling you something broke.** Every gate here
+checks form; none understands meaning.
+
+How this compares to Aider, Serena and fast-apply models — including where
+they are better — is in [`docs/comparison.md`](docs/comparison.md).
+
 ---
 
 ## How it works
@@ -256,6 +277,7 @@ was wrong and said so.
 | [Architecture](docs/architecture.md) | what gets built and why |
 | [Critical review](docs/critical-review.md) | a fresh-eyes pass hunting for reasons this fails — twelve findings, two later refuted by measurement |
 | [Calibration results](docs/calibration.md) | what the worker actually did when asked |
+| [Comparison](docs/comparison.md) | how this sits next to Aider, Serena and fast-apply — and where they win |
 | [Licensing](docs/licensing.md) | what we consume, what we grant |
 
 [`brainstorm/`](brainstorm/) holds the working record: the original spec,

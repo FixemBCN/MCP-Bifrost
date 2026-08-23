@@ -87,12 +87,17 @@ know what it is patching.
 
 Nothing reaches disk until every gate passes:
 
-| Gate | Checks |
-|---|---|
-| **offsets** | the block on disk is byte-identical to what we sent the worker |
-| **syntax** | the reconstructed file parses (`php -l`, `ast.parse`) |
-| **one symbol** | the returned block defines exactly one thing |
-| **substance** | no call, variable or control keyword silently vanished |
+| Gate | Checks | Default |
+|---|---|---|
+| **offsets** | the block on disk is byte-identical to what we sent the worker | on |
+| **syntax** | the reconstructed file parses (`php -l`, `ast.parse`) | on |
+| **one symbol** | the returned block defines exactly one thing | on |
+| **substance** | no call, variable or control keyword silently vanished | **off** |
+
+The substance gate ships disabled. It is a coarse regex check that never
+fired during calibration, and a gate that rejects good patches is worse than
+one waiting to be armed — but that means three gates protect you by default,
+not four. Turn it on with `substance_gate=True` before bulk work.
 
 A "perimeter check" comparing bytes outside the target range was specified,
 built, and then **deleted**: the server constructs the file as
