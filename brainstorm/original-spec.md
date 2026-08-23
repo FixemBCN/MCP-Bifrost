@@ -1,7 +1,12 @@
-# Espec original — proposta d'entrada (2026-08-23)
+# Original specification — the starting proposal (2026-08-23)
 
-> Document rebut tal qual de l'usuari. No es modifica. Serveix de referència
-> fixa per contrastar les iteracions a `pla.md`.
+> Received as written. Left untouched, deliberately: it is the fixed
+> reference the iterations in [`plan.md`](./plan.md) are measured against.
+>
+> Reading it next to what was actually built is the point. Several of its
+> assumptions turned out to be wrong, and one of its central guarantees —
+> the perimeter check — was found to be structurally incapable of failing.
+> None of that is visible unless the original survives unedited.
 
 # PROJECT SPECIFICATION: MCP AST-Driven Targeted Code Patcher
 
@@ -131,7 +136,9 @@ sessions.
 
 ---
 
-*(El document original incloïa també un bloc `<ElicitationsGroup>` amb dues
-accions suggerides — generar el servidor MCP base i l'extractor de docs. No
-s'executen: l'usuari ha demanat centrar-se primer en validar el projecte i el
-blueprint.)*
+*(The original also carried an `<ElicitationsGroup>` block offering two
+next actions — generate the base MCP server, and write the documentation
+extractor. Neither was taken: the request was to validate the project and
+its blueprint first, before writing any code. That ordering is what
+surfaced the byte-offset bug and the tautological gate before either could
+reach production.)*

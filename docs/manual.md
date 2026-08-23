@@ -275,5 +275,8 @@ and nothing to sign.
 | [calibration.md](calibration.md) | what the worker actually did when asked, and the bug it exposed |
 | [licensing.md](licensing.md) | what we consume, what we grant |
 
-The design was argued out in Catalan in `brainstorm/`, kept as the working
-record. `docs/` is the English reference and wins where the two differ.
+[`brainstorm/`](../brainstorm/) holds the working record: the original spec,
+the design journal across five revisions, the adversarial review, and the
+calibration results. This directory is the reference and wins where the two
+differ — the journal is kept for how the conclusions were reached, including
+the two findings that measurement later refuted.

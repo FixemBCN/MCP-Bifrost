@@ -139,8 +139,7 @@ which is exactly this category.
 
 ### Before publishing
 
-- [ ] Confirm the copyright holder in `LICENSE` and `NOTICE` — currently
-      `Tuath Studio`. Change it if rights should sit elsewhere.
+- [ ] ~~Confirm the copyright holder~~ — done: Arnau Ferrerons Manich.
 - [ ] Add an `Apache-2.0` license header to source files, or decide
       deliberately not to. The `LICENSE` file alone is sufficient; per-file
       headers are convention, not requirement.

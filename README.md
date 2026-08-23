@@ -134,7 +134,7 @@ matters, are in the [manual](docs/manual.md).
 | `mcp_bifrost/` | the server |
 | [`docs/`](docs/) | manual, architecture, critical review, calibration, licensing |
 | `tests/` | 125 tests |
-| `brainstorm/` | the Catalan working journal the design was argued out in |
+| [`brainstorm/`](brainstorm/) | the working record — how each decision was reached, including the reversed ones |
 | `calibratge/` | the measurement harness (see below) |
 
 ---
@@ -176,9 +176,11 @@ would have corrupted files silently in production. Full write-up:
 | [Calibration results](docs/calibration.md) | what the worker actually did when asked |
 | [Licensing](docs/licensing.md) | what we consume, what we grant |
 
-The design was argued out in Catalan in `brainstorm/`, kept as the working
-record. `docs/` is the English reference and is authoritative where the two
-differ.
+[`brainstorm/`](brainstorm/) holds the working record: the original spec,
+the design journal across five revisions, the adversarial review, and the
+calibration results. `docs/` is the reference and wins where the two differ —
+the journal is kept for how the conclusions were reached, including the two
+findings that measurement later refuted.
 
 ---
 
