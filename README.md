@@ -7,63 +7,70 @@
 
 # MCP-Bifrost
 
-**Status: working.** PHP and Python, eleven tools, 125 tests.
-**[Read the manual →](docs/manual.md)**
+**Rewrite 200 methods with a cheap model, without a single line of the
+result passing through the expensive one's context — and without writing
+anything to disk that does not compile.**
+
+[![tests](https://img.shields.io/badge/tests-125%20passing-2ea44f)](tests/)
+[![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
+[![targets](https://img.shields.io/badge/targets-PHP%20%7C%20Python-777)](docs/comparison.md)
 
 An MCP server that takes code work already analysed and split up by an
-orchestrating model, extracts the exact target block with a real parser,
-delegates the rewriting to a cheaper worker model, validates the result,
-applies it atomically to disk, and records the whole thing outside the
+orchestrating model, extracts the exact target block with the language's own
+parser, delegates the rewriting to a cheaper worker model, validates the
+result, applies it atomically, and records the whole thing outside the
 orchestrator's context.
 
-DeepSeek is the muscle. Claude is the head. Bifrost is the nerve between
-them — and the part that guarantees nothing reaches disk broken.
+The head decides. The muscle types. Bifrost is the nerve between them — and
+the part that guarantees nothing reaches disk broken.
+
+In the examples below the head is Claude and the muscle is DeepSeek, which is
+simply the model that was to hand. Neither is a requirement. See
+[The worker](#the-worker) for why a 7B model on your own machine may be the
+more interesting choice.
 
 ---
 
 ## Why
 
 A large codebase edited by an LLM has one real bottleneck, and it is not
-intelligence: it is context. Reading a 4,600-line file to change thirty
-lines of it burns the orchestrator's window on text it will never use
-again.
+intelligence: it is context. Reading a 4,600-line file to change thirty lines
+of it burns the orchestrator's window on text it will never use again.
 
-Bifrost's premise is that the *mechanical* half of coding — writing the
+Bifrost's premise is that the mechanical half of coding — writing the
 replacement text — does not need the expensive model, and does not need to
 pass through its context at all.
-
-**The honest version of the economics** (see
-[`docs/critical-review.md`](docs/critical-review.md), RF-4): for a single
-small edit the saving is real but modest, because the orchestrator usually
-had to read the code anyway to say what it wanted. The order-of-magnitude
-win is in **volume** — transformations across many symbols where the
-instruction can be written without reading anything:
 
 | | Orchestrator does it all | Via Bifrost |
 |---|---|---|
 | 202 methods × ~800 tok | **~161,000 tok** — exceeds a context window | ~15,000 tok |
 
-That is the use case this project is built for. Not "fix this bug."
+**The honest version** (see [RF-4](docs/critical-review.md)): for a single
+small edit the saving is real but modest, because the orchestrator usually
+had to read the code anyway to say what it wanted. The order-of-magnitude win
+is in volume — transformations across many symbols where the instruction can
+be written without reading anything.
 
-## When not to use it
+That is the use case this is built for. Not "fix this bug."
 
-**Exploratory work.** "Find why this crashes" is not an instruction Bifrost
-can execute — it needs to know which symbols to touch before it starts.
+---
 
-**Single small edits.** The token arithmetic is marginal, and we say so
-([RF-4](docs/critical-review.md)). Use your agent's normal edit tool.
+## When *not* to use it
 
-**Latency-sensitive loops.** ~2.6 s per block.
+- **Exploratory work.** "Find why this crashes" is not an instruction Bifrost
+  can execute. It needs to know the symbols before it starts.
+- **Single small edits.** The token arithmetic is marginal, and we say so
+  ([RF-4](docs/critical-review.md)). Use your agent's normal edit tool.
+- **Latency-sensitive loops.** ~2.6 s per block, measured against DeepSeek.
+- **Anything that is not PHP or Python.** Adding a language means writing a
+  parser adapter, not rewriting the core — but it is not there today.
+- **Cross-file refactors where one edit's shape depends on another's
+  outcome.** `patch_group` gives atomicity, not sequencing.
+- **Codebases with no way of telling you something broke.** Every gate here
+  checks form; none understands meaning.
 
-**Anything that is not PHP or Python.**
-
-**Cross-file refactors where one edit's shape depends on another's outcome.**
-`patch_group` gives atomicity, not sequencing.
-
-**Codebases with no way of telling you something broke.** Every gate here
-checks form; none understands meaning.
-
-How this compares to Aider, Serena and fast-apply models — including where
+How this sits next to Aider, Serena and fast-apply models — including where
 they are better — is in [`docs/comparison.md`](docs/comparison.md).
 
 ---
@@ -71,7 +78,7 @@ they are better — is in [`docs/comparison.md`](docs/comparison.md).
 ## How it works
 
 ```
-you ──▶ Claude Code ──▶ MCP-Bifrost ──▶ DeepSeek
+you ──▶ Claude Code ──▶ MCP-Bifrost ──▶ worker model
          analyses,        parses,          writes one
          splits work      validates,       isolated block
                           applies, logs
@@ -80,35 +87,157 @@ you ──▶ Claude Code ──▶ MCP-Bifrost ──▶ DeepSeek
                               └──▶ .bifrost/history.db
 ```
 
-The orchestrator decides *what* and *how*. The worker decides nothing. The
-server is the only component allowed to touch disk, and it refuses to do so
-until every gate passes.
+The orchestrator decides what and how. The worker decides nothing. The server
+is the only component allowed to touch disk, and it refuses until every gate
+passes.
 
 ### Validation gates
 
-Nothing is written until all of these hold:
-
-| Gate | Checks | Can it fail? |
+| Gate | Checks | Default |
 |---|---|---|
-| **0 — offsets** | the block currently on disk is byte-identical to what we sent the worker | ✅ yes, and it is the critical one |
-| **1 — syntax** | the reconstructed file passes `php -l` / `ast.parse()` | ✅ yes |
-| **2 — one symbol** | the returned block defines exactly one symbol | ✅ yes |
-| **3 — substance** | no calls, variables or control keywords silently vanished | ✅ yes |
+| **0 — offsets** | the block on disk is byte-identical to what we sent the worker | on |
+| **1 — syntax** | the rebuilt file passes `php -l` / `ast.parse()` | on |
+| **2 — one symbol** | the returned block defines exactly one symbol | on |
+| **3 — substance** | no call, variable or control keyword vanished silently | **off** |
+
+**Three are on by default, not four.** The substance gate is a coarse regex
+check that never fired during calibration, and a gate that rejects good
+patches is worse than one waiting to be armed. Enable it with
+`substance_gate=True` before bulk work.
 
 A "perimeter check" comparing bytes outside the target range was specified,
-designed, and then **removed**: the server builds the new file as
-`original[:start] + block + original[end:]`, so the perimeter is preserved
-*by construction* and the check can never fail. Calibration confirmed it
-empirically — it reported 9/9 while three files were syntactically broken.
-See RF-1 in the critical review.
+built, and then **deleted**: the server rebuilds the file as
+`original[:start] + block + original[end:]`, so the perimeter is preserved by
+construction and the check can never fail. Calibration confirmed it — the
+gate reported 9/9 while three files were left syntactically broken. See
+[RF-1](docs/critical-review.md).
 
 ### Rollback
 
-Git is already a content-addressed database, so we use it as one.
+Git is already a content-addressed database, so it is used as one.
 `git hash-object -w` before each patch yields a blob SHA that goes in the
-log; reverting is `git cat-file blob`. Deduplicated and compressed for
-free, works with a dirty working tree, and there is no bespoke snapshot
-format to maintain.
+log; reverting is `git cat-file blob`. Deduplicated and compressed for free,
+works with a dirty working tree, and there is no bespoke snapshot format to
+maintain.
+
+---
+
+## The worker
+
+DeepSeek is what was to hand, and every number in this repository was
+measured against it. It is not a requirement, and it is probably not the most
+interesting way to run this.
+
+The worker's job is deliberately narrow. It receives one isolated block and
+one instruction, and returns one block. It does not choose files, plan
+changes, decide what to edit, or see anything else in the codebase. That is a
+task a 7B coding model can do — and the gates exist precisely so a weak
+worker's mistakes are caught before they reach disk rather than after.
+
+Which makes the local case the more compelling one:
+
+- **Your code never leaves the machine.** For a proprietary codebase that is
+  not a preference, it is a precondition.
+- **Cost goes to zero** on exactly the workload this is built for, where
+  hundreds of blocks in one run is normal rather than extreme.
+- **The context requirement is tiny.** One method, not one file. An 8k window
+  is plenty; the whole design is that the worker never sees more than it needs.
+- **A weak worker is an acceptable worker** when every output is parsed,
+  syntax-checked and diffed before it counts for anything. A bad block costs
+  a retry, not a corrupted file.
+
+That last one is the real argument. Delegating code generation to a small
+local model is normally a bad idea because you cannot trust the output and
+checking it by hand costs more than writing it. Bifrost's answer is that the
+checking is mechanical, and the machine can do it.
+
+Any OpenAI-compatible endpoint works — Ollama, llama.cpp's server, LM Studio,
+vLLM:
+
+```json
+"env": {
+  "BIFROST_WORKER_BASE_URL": "http://localhost:11434/v1",
+  "BIFROST_WORKER_MODEL": "qwen2.5-coder:7b"
+}
+```
+
+No key is needed when the endpoint is not the default one.
+
+### Worker compatibility
+
+**No local model has been measured yet.** The endpoint is configurable and
+the protocol is a plain OpenAI-compatible chat completion, but this
+repository does not publish claims it has not measured — and that includes
+claims in its own favour.
+
+The instrument exists. Point it at your endpoint:
+
+```bash
+BIFROST_TARGET=/path/to/your/codebase \
+BIFROST_WORKER_BASE_URL=http://localhost:11434/v1 \
+BIFROST_WORKER_MODEL=your-model \
+python3 calibratge/calibra.py --cases 9
+```
+
+| Worker | Valid JSON | Byte-identical (identity task) | No lines lost | Unfenced | Latency |
+|---|---|---|---|---|---|
+| DeepSeek (`deepseek-chat`, API) | 9/9 | 3/3 | 3/3 | 9/9 | 2.6 s |
+| *your model here* | | | | | |
+
+If you run it, open a PR with the row. Numbers that make a model look bad are
+as useful as numbers that make it look good — the table exists to say which
+workers this actually works with, not to advertise.
+
+**One thing to expect.** DeepSeek returned zero of nine responses wrapped in
+markdown fences. Smaller models fence almost everything, and that is a
+parsing problem rather than a capability one. Bifrost already strips fences;
+if your model is otherwise sound but still fails on them, report it as a bug
+here rather than as a mark against the model.
+
+---
+
+## What leaves the machine
+
+The unit of work sent to a worker is one parsed block — a single method — and
+never the file it came from. That is a consequence of the design rather than
+a feature added to it: if the replacement code does not pass through the
+orchestrator's context, it does not pass through anywhere else either.
+
+**What it does not mean.** The block does leave, in the clear, to whatever
+endpoint you configured. So does the instruction, which may itself describe
+internal architecture.
+
+**What already guards it.** Heimdall runs *before* the send, not before the
+write. Where a secret is a self-contained token it is swapped for a
+placeholder, the worker transforms the code around it, and the original goes
+back before the file is written — every placeholder must return exactly once
+or nothing is written at all. What cannot be safely redacted blocks the send
+outright. Measured false-positive rate on a real codebase: 2 findings across
+1,291 symbols, both correct refusals of code that *manipulates* keys rather
+than holding one.
+
+If your constraint is that nothing may leave at all, the answer is a local
+worker, not a smaller payload.
+
+### Designed, not built
+
+Two additions would close most of the remaining gap. Neither exists yet, and
+they are named here rather than hidden in an issue because the design is the
+interesting part:
+
+- **Egress log.** The log records the *size* of what was sent, not the bytes.
+  Recording them alongside what came back is nearly free, and it turns "trust
+  us" into "audit it".
+- **Comment and literal redaction.** Heimdall redacts things shaped like
+  secrets. The parser already produces the tree, so comments and string
+  literals — often the highest-risk payload and frequently irrelevant to the
+  transformation — could be replaced with opaque markers and restored on
+  return.
+
+The obvious objection to the second is that quality may suffer when the
+worker cannot see the names. That is a measurable question, not an argument:
+nine cases with redaction, nine without, `calibratge/calibra.py`. Whichever
+way it comes out gets published.
 
 ---
 
@@ -122,7 +251,7 @@ cd MCP-Bifrost
 python3 -m unittest discover tests    # 125 tests, ~15s
 ```
 
-Then add it to `.mcp.json` in the project you want to patch:
+Add it to `.mcp.json` in the project you want to patch:
 
 ```json
 {
@@ -130,40 +259,39 @@ Then add it to `.mcp.json` in the project you want to patch:
     "bifrost": {
       "command": "python3",
       "args": ["-m", "mcp_bifrost.server"],
-      "cwd": "/path/to/the/project/you/are/patching",
       "env": {
         "PYTHONPATH": "/path/to/MCP-Bifrost",
-        "DEEPSEEK_API_KEY": "sk-..."
+        "BIFROST_DB": ".bifrost/history.db"
       }
     }
   }
 }
 ```
 
-Full instructions, and what to do before pointing it at anything that
-matters, are in the [manual](docs/manual.md).
+**The key does not go in that file.** Put it in `.bifrost.env` at your project
+root, which the server reads when the environment does not carry it:
 
-## Tools
+```bash
+echo "DEEPSEEK_API_KEY=sk-..." > .bifrost.env
+chmod 600 .bifrost.env
+echo ".bifrost.env" >> .gitignore
+```
+
+Or skip the key entirely and point `BIFROST_WORKER_BASE_URL` at a local
+model. Full instructions, and what to do before pointing this at anything
+that matters, are in [the manual](docs/manual.md).
+
+### Tools
 
 | Tool | What it does |
 |---|---|
-| `fix_symbols` | one instruction across many symbols — the main one |
+| `fix_symbols` | one instruction across many symbols — **the main one** |
 | `fix_symbol` / `fix_range` | rewrite one symbol, or an explicit line range |
-| `insert_symbol` / `insert_case` | add a method, or a branch to a `switch` router |
+| `insert_symbol` / `insert_case` | add a method, or a branch to a switch router |
 | `create_file` | write a new file, optionally by analogy with an existing one |
 | `patch_group` | several operations as one transaction |
 | `export_docs` / `publish_session` | changelog from the log; batch onto a reviewable branch |
 | `revert_patch` / `revert_session` | undo one patch, or the whole batch |
-
-## Repository layout
-
-| Path | What |
-|---|---|
-| `mcp_bifrost/` | the server |
-| [`docs/`](docs/) | manual, architecture, critical review, calibration, licensing |
-| `tests/` | 125 tests |
-| [`brainstorm/`](brainstorm/) | the working record — how each decision was reached, including the reversed ones |
-| `calibratge/` | the measurement harness (see below) |
 
 ---
 
@@ -171,17 +299,17 @@ matters, are in the [manual](docs/manual.md).
 
 Before writing a line of the server, one question had to be answered:
 
-> Given a real method from the target codebase, packed with the compact
-> schema, does the worker return code that can be applied without breaking
-> anything?
+> Given a real method from a real codebase, packed with the compact schema,
+> does the worker return code that can be applied without breaking anything?
 
-The harness in `calibratge/` answers it. **Zero dependencies** — Python
-stdlib plus the `php` binary.
+The harness in `calibratge/` answers it. Zero dependencies — Python stdlib
+plus the `php` binary.
 
 ```bash
-export DEEPSEEK_API_KEY=...
+export BIFROST_TARGET=/path/to/your/codebase
 python3 calibratge/calibra.py --dry-run    # show cases, no API calls
-python3 calibratge/calibra.py --casos 9    # real run
+export DEEPSEEK_API_KEY=...
+python3 calibratge/calibra.py --cases 9
 ```
 
 **Result: the premise holds.** 9/9 valid JSON, 3/3 byte-identical on the
@@ -190,7 +318,19 @@ fences, 2.6 s average latency.
 
 It also caught a byte-offset bug that had nothing to do with the worker and
 would have corrupted files silently in production. Full write-up:
-[`docs/calibration.md`](docs/calibration.md).
+[docs/calibration.md](docs/calibration.md).
+
+---
+
+## Repository layout
+
+| Path | What |
+|---|---|
+| `mcp_bifrost/` | the server |
+| [`docs/`](docs/) | manual, architecture, critical review, calibration, comparison, licensing |
+| `tests/` | 125 tests |
+| [`brainstorm/`](brainstorm/) | the working record — how each decision was reached, including the reversed ones |
+| `calibratge/` | the measurement harness |
 
 ---
 
@@ -199,22 +339,22 @@ would have corrupted files silently in production. Full write-up:
 To be completely transparent: **not a single line of this codebase was
 written by hand.** It was conceptualised, challenged, implemented, tested and
 documented through a human-directed AI process. Here is what that actually
-meant, as precisely as I can state it.
+meant, as precisely as it can be stated.
 
 **Human — problem, decisions, direction.** I brought the initial
 specification and made every product decision: which worker model, which
 languages, what to cut, what to build next, the licence, the naming, when to
-stop. Several of those decisions reversed earlier ones — the licence started
-as a no-resale source-available one and ended up Apache-2.0 once I decided
-reach mattered more than control. I also decided what the system must refuse
-to do, which turned out to be the more consequential half.
+stop. Several reversed earlier ones — the licence started as a no-resale
+source-available one and ended up Apache-2.0 once I decided reach mattered
+more than control. I also decided what the system must refuse to do, which
+turned out to be the more consequential half.
 
 **Claude Opus — adversarial design.** Before implementation, Claude reviewed
 the specification as an outsider looking for reasons it would fail, and
-produced twelve findings. Two of them killed design elements I had approved:
-the central "perimeter check" the spec relied on turned out to be incapable
-of failing, and the project's stated justification — token savings — was
-shown to be marginal for single edits and only decisive in bulk. Both are
+produced twelve findings. Two killed design elements I had approved: the
+central "perimeter check" the spec relied on turned out to be incapable of
+failing, and the project's stated justification — token savings — was shown
+to be marginal for single edits and only decisive in bulk. Both are
 preserved, unedited, in [`brainstorm/`](brainstorm/).
 
 **Measurement before code.** Rather than trusting the design, a calibration
@@ -225,9 +365,9 @@ accented character. It also refuted two of Claude's own review findings.
 Those corrections sit above the original claims rather than replacing them.
 
 **Claude Opus — the core; delegated models — the periphery.** Claude wrote
-the parsing, patching, validation gates, secret handling and engine
-directly. Two peripheral modules and the entire 125-test suite were delegated
-to smaller models (Haiku and Sonnet) running as subagents. The split was
+the parsing, patching, validation gates, secret handling and engine directly.
+Two peripheral modules and the entire 125-test suite were delegated to
+smaller models (Haiku and Sonnet) running as subagents. The split was
 deliberate rather than economical: a model starting cold on the patching code
 would very plausibly have reintroduced the byte-offset bug, because the
 natural way to write that code is the wrong way.
@@ -247,9 +387,9 @@ meant.
 
 No human has read all ~7,400 lines of this repository — roughly 4,100 of
 server, 2,700 of tests and 600 of measurement harness — line by line. The
-confidence here comes from tests that were checked against deliberately
-broken code, from measurements against a real codebase, and from a design
-that refuses to write anything it cannot verify — not from manual audit.
+confidence here comes from tests checked against deliberately broken code,
+from measurements against a real codebase, and from a design that refuses to
+write anything it cannot verify — not from manual audit.
 
 If that is not the kind of confidence you want in a tool that edits your
 source files, that is a reasonable position, and the
@@ -273,18 +413,16 @@ was wrong and said so.
 
 | Document | What it is |
 |---|---|
-| **[Manual](docs/manual.md)** | **what it is, what it can do, how to install it, and what you are responsible for** |
+| [Manual](docs/manual.md) | what it is, what it can do, how to install it, and what you are responsible for |
 | [Architecture](docs/architecture.md) | what gets built and why |
 | [Critical review](docs/critical-review.md) | a fresh-eyes pass hunting for reasons this fails — twelve findings, two later refuted by measurement |
 | [Calibration results](docs/calibration.md) | what the worker actually did when asked |
 | [Comparison](docs/comparison.md) | how this sits next to Aider, Serena and fast-apply — and where they win |
 | [Licensing](docs/licensing.md) | what we consume, what we grant |
 
-[`brainstorm/`](brainstorm/) holds the working record: the original spec,
-the design journal across five revisions, the adversarial review, and the
-calibration results. `docs/` is the reference and wins where the two differ —
-the journal is kept for how the conclusions were reached, including the two
-findings that measurement later refuted.
+[`brainstorm/`](brainstorm/) holds the working record: the original spec, the
+design journal across five revisions, the adversarial review, and the
+calibration results. `docs/` is the reference and wins where the two differ.
 
 ---
 
@@ -299,9 +437,8 @@ about what the gates do and do not catch.
 ## Contributing
 
 Contributions of every kind are welcome — including an argument that
-something here is wrong. This project has already deleted one validation
-gate for being tautological and refuted two of its own claims with
-measurement.
+something here is wrong. This project has already deleted one validation gate
+for being tautological and refuted two of its own claims with measurement.
 
 One convention, and it is the one that matters: **every test must be able to
 fail.** Details in the [manual](docs/manual.md#contributing).
@@ -309,12 +446,6 @@ fail.** Details in the [manual](docs/manual.md#contributing).
 ## License
 
 [Apache License 2.0](LICENSE).
-
-Use it, modify it, redistribute it, build on it commercially. Keep the
-notices and say what you changed.
-
-The reasoning behind choosing a permissive license over a no-resale one, and
-why Apache-2.0 rather than MIT, is in [`docs/licensing.md`](docs/licensing.md).
 
 Built on the [Model Context Protocol](https://modelcontextprotocol.io),
 MIT-licensed by Anthropic, PBC. MCP-Bifrost is an independent project and is

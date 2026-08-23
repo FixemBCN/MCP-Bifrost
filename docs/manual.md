@@ -125,7 +125,10 @@ Findings carry a pattern name and a line number, never the matched text.
 - Python 3.11+ — **standard library only**, no `pip install` needed
 - `php` on `PATH` if you patch PHP (PHP 8.x; also used for validation)
 - `git` — rollback depends on it
-- A DeepSeek API key
+- A worker: a DeepSeek API key, **or** any OpenAI-compatible endpoint
+  (Ollama, llama.cpp, LM Studio, vLLM) via `BIFROST_WORKER_BASE_URL` — no key
+  needed for a local one. Note that no local model has been measured yet; the
+  calibration harness exists so you can measure yours before trusting it.
 - `gh` only if you want `publish_session` to open pull requests
 
 ### Get it

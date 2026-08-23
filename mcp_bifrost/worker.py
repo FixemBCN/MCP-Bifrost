@@ -138,32 +138,54 @@ class DeepSeekWorker:
     def __init__(
         self,
         api_key: str | None = None,
-        model: str = MODEL_DEFAULT,
+        model: str | None = None,
         timeout: int = 180,
-        base_url: str = API_URL_BASE,
+        base_url: str | None = None,
     ):
         """Initialize the worker.
 
         Args:
-            api_key: DeepSeek API key. Falls back to the DEEPSEEK_API_KEY
-                     environment variable, then to a `.bifrost.env` file
-                     (see _key_from_file). Raises RuntimeError if none works.
-            model: Model identifier (default: "deepseek-chat").
+            api_key: Worker API key. Falls back to BIFROST_WORKER_API_KEY,
+                     then DEEPSEEK_API_KEY, then a `.bifrost.env` file.
+            model: Model identifier. Falls back to BIFROST_WORKER_MODEL,
+                   then "deepseek-chat".
             timeout: Request timeout in seconds (default: 180).
-            base_url: API base URL (default: "https://api.deepseek.com").
+            base_url: OpenAI-compatible endpoint. Falls back to
+                      BIFROST_WORKER_BASE_URL, then DeepSeek's.
+
+        The endpoint is deliberately configurable. Nothing in the protocol is
+        DeepSeek-specific — it is an OpenAI-compatible chat completion with a
+        JSON response format — so Ollama, llama.cpp, LM Studio or vLLM serve
+        equally well. A local endpoint is the only configuration in which the
+        code being patched never leaves the machine.
+
+        Local endpoints usually need no credential. When the base URL is not
+        the default and no key is found, an empty one is sent rather than
+        refusing to start: demanding a key that the server will ignore would
+        block the exact setup this indirection exists to allow.
 
         Raises:
-            RuntimeError: If DEEPSEEK_API_KEY is not set and api_key is None.
+            RuntimeError: If a remote endpoint is configured with no key.
         """
+        base_url = base_url or os.environ.get(
+            "BIFROST_WORKER_BASE_URL") or API_URL_BASE
+        model = model or os.environ.get(
+            "BIFROST_WORKER_MODEL") or MODEL_DEFAULT
         if api_key is None:
-            api_key = os.environ.get("DEEPSEEK_API_KEY") or _key_from_file()
-            if not api_key:
+            api_key = (os.environ.get("BIFROST_WORKER_API_KEY")
+                       or os.environ.get("DEEPSEEK_API_KEY")
+                       or _key_from_file())
+        if not api_key:
+            if base_url != API_URL_BASE:
+                api_key = ""      # local endpoint, credential not required
+            else:
                 raise RuntimeError(
-                    "No DeepSeek API key found. Either export "
-                    "DEEPSEEK_API_KEY, or put it in a `.bifrost.env` file at "
-                    "your project root as DEEPSEEK_API_KEY=sk-... (chmod 600, "
-                    "and keep it out of version control), or point "
-                    "BIFROST_ENV_FILE at such a file."
+                    "No worker API key found. Either export "
+                    "DEEPSEEK_API_KEY (or BIFROST_WORKER_API_KEY), or put it "
+                    "in a `.bifrost.env` file at your project root as "
+                    "DEEPSEEK_API_KEY=sk-... (chmod 600, and keep it out of "
+                    "version control). For a local worker set "
+                    "BIFROST_WORKER_BASE_URL instead — no key is then needed."
                 )
         self.api_key = api_key
         self.model = model

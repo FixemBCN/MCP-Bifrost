@@ -53,8 +53,13 @@ TARGET_GLOB = os.environ.get("BIFROST_TARGET_GLOB", "**/*.php")
 EXTRACT_PHP = Path(__file__).parent.parent / "mcp_bifrost" / "languages" / "extract.php"
 RESULTS_DIR = Path(__file__).parent / "results"
 
-API_URL = "https://api.deepseek.com/chat/completions"
-MODEL = "deepseek-chat"
+# The endpoint is configurable so the harness can measure the worker you
+# actually intend to use. Measuring DeepSeek and then running a local 7B is
+# not a calibration, it is a guess with a table next to it.
+WORKER_BASE = os.environ.get("BIFROST_WORKER_BASE_URL",
+                             "https://api.deepseek.com").rstrip("/")
+API_URL = f"{WORKER_BASE}/chat/completions"
+MODEL = os.environ.get("BIFROST_WORKER_MODEL", "deepseek-chat")
 
 # Static system prompt. In production this is what DeepSeek's prompt caching
 # keys off; here it is held identical across calls precisely so the cache hit
@@ -378,6 +383,7 @@ def main() -> int:
         print(f"missing {EXTRACT_PHP}", file=sys.stderr)
         return 2
 
+    print(f"worker:  {MODEL} at {WORKER_BASE}")
     print(f"selecting {args.cases} cases from {TARGET_ROOT}…")
     cases = pick_cases(args.cases)
     if not cases:
@@ -392,9 +398,13 @@ def main() -> int:
         print("\n--dry-run: the API is not called.")
         return 0
 
-    api_key = os.environ.get("DEEPSEEK_API_KEY")
-    if not api_key:
-        print("\nDEEPSEEK_API_KEY is not set.", file=sys.stderr)
+    api_key = (os.environ.get("BIFROST_WORKER_API_KEY")
+               or os.environ.get("DEEPSEEK_API_KEY"))
+    if not api_key and WORKER_BASE != "https://api.deepseek.com":
+        api_key = ""            # local endpoints rarely want one
+    if api_key is None or (not api_key and WORKER_BASE == "https://api.deepseek.com"):
+        print("\nNo worker API key. Set DEEPSEEK_API_KEY, or point "
+              "BIFROST_WORKER_BASE_URL at a local endpoint.", file=sys.stderr)
         return 3
 
     results = []

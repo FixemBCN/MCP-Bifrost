@@ -19,6 +19,12 @@ through its context?
 | Fast-apply ([Morph](https://morphllm.com), [Relace](https://relace.ai)) | a lazy edit snippet | yes, minus unchanged regions | a small merge model |
 | **MCP-Bifrost** | an instruction | **no** | parser + gates, deterministic splice |
 
+A fifth column belongs here and is not in the table because it is only
+partly measurable: **what leaves the machine.** Bifrost sends one parsed
+block, never the file, and can be pointed at a local endpoint so nothing
+leaves at all. That is a property of the design rather than a benchmark, and
+it is the reason the comparison above may matter less than it looks.
+
 The axis that matters is the third column. Aider and Serena reduce what the
 model has to **read**. Fast-apply reduces what it has to **write out**.
 Bifrost is built so the replacement code never enters the orchestrator's
