@@ -16,3 +16,9 @@ calibratge/resultats/
 
 __pycache__/
 *.pyc
+
+# Worker credentials. The manual tells people to create this file; it must
+# never be committable, in this repo or in any clone of it.
+.bifrost.env
+*.env
+!.env.example
