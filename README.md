@@ -1,6 +1,7 @@
 # MCP-Bifrost
 
-**Status: design and validation. No server code written yet.**
+**Status: working.** PHP and Python, eleven tools, 125 tests.
+**[Read the manual →](docs/manual.md)**
 
 An MCP server that takes code work already analysed and split up by an
 orchestrating model, extracts the exact target block with a real parser,
@@ -83,11 +84,56 @@ format to maintain.
 
 ---
 
+## Quick start
+
+Python 3.11+, standard library only. No `pip install`.
+
+```bash
+git clone https://github.com/FixemBCN/MCP-Bifrost.git
+cd MCP-Bifrost
+python3 -m unittest discover tests    # 125 tests, ~15s
+```
+
+Then add it to `.mcp.json` in the project you want to patch:
+
+```json
+{
+  "mcpServers": {
+    "bifrost": {
+      "command": "python3",
+      "args": ["-m", "mcp_bifrost.server"],
+      "cwd": "/path/to/the/project/you/are/patching",
+      "env": {
+        "PYTHONPATH": "/path/to/MCP-Bifrost",
+        "DEEPSEEK_API_KEY": "sk-..."
+      }
+    }
+  }
+}
+```
+
+Full instructions, and what to do before pointing it at anything that
+matters, are in the [manual](docs/manual.md).
+
+## Tools
+
+| Tool | What it does |
+|---|---|
+| `fix_symbols` | one instruction across many symbols — the main one |
+| `fix_symbol` / `fix_range` | rewrite one symbol, or an explicit line range |
+| `insert_symbol` / `insert_case` | add a method, or a branch to a `switch` router |
+| `create_file` | write a new file, optionally by analogy with an existing one |
+| `patch_group` | several operations as one transaction |
+| `export_docs` / `publish_session` | changelog from the log; batch onto a reviewable branch |
+| `revert_patch` / `revert_session` | undo one patch, or the whole batch |
+
 ## Repository layout
 
 | Path | What |
 |---|---|
-| [`docs/`](docs/) | English documentation — architecture, review, results, licensing |
+| `mcp_bifrost/` | the server |
+| [`docs/`](docs/) | manual, architecture, critical review, calibration, licensing |
+| `tests/` | 125 tests |
 | `brainstorm/` | the Catalan working journal the design was argued out in |
 | `calibratge/` | the measurement harness (see below) |
 
@@ -124,6 +170,7 @@ would have corrupted files silently in production. Full write-up:
 
 | Document | What it is |
 |---|---|
+| **[Manual](docs/manual.md)** | **what it is, what it can do, how to install it, and what you are responsible for** |
 | [Architecture](docs/architecture.md) | what gets built and why |
 | [Critical review](docs/critical-review.md) | a fresh-eyes pass hunting for reasons this fails — twelve findings, two later refuted by measurement |
 | [Calibration results](docs/calibration.md) | what the worker actually did when asked |
@@ -134,6 +181,24 @@ record. `docs/` is the English reference and is authoritative where the two
 differ.
 
 ---
+
+## Responsibility
+
+This tool edits your source files automatically using a language model.
+Apache 2.0 means it is provided **as is, without warranty**: you are
+responsible for what it does to your code. Read the diffs, run your tests,
+deploy on purpose. The [manual](docs/manual.md#responsibility) is specific
+about what the gates do and do not catch.
+
+## Contributing
+
+Contributions of every kind are welcome — including an argument that
+something here is wrong. This project has already deleted one validation
+gate for being tautological and refuted two of its own claims with
+measurement.
+
+One convention, and it is the one that matters: **every test must be able to
+fail.** Details in the [manual](docs/manual.md#contributing).
 
 ## License
 
