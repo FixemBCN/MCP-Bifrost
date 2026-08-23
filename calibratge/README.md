@@ -14,10 +14,17 @@ None. Python 3 stdlib plus the `php` binary (tested against PHP 8.5).
 ## Usage
 
 ```bash
+export BIFROST_TARGET=/path/to/the/codebase/you/want/to/patch
 python3 calibra.py --dry-run          # list the cases, no API calls
+
 export DEEPSEEK_API_KEY=sk-...
 python3 calibra.py --cases 9          # real run
 ```
+
+Point `BIFROST_TARGET` at your own codebase. The harness picks real methods
+out of it, because that is the only thing worth measuring — a synthetic
+fixture tells you nothing about whether the worker can handle *your* code.
+`BIFROST_TARGET_GLOB` narrows the search (default `**/*.php`).
 
 Results land in `resultats/` (git-ignored — the output embeds fragments of
 the target codebase).

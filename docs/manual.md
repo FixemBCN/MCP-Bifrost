@@ -157,6 +157,21 @@ lands in `.bifrost/` there — add it to that project's `.gitignore`.
 
 Restart Claude Code and the eleven tools appear.
 
+### Calibrate against your own code first
+
+Before trusting it, measure whether the worker handles *your* codebase:
+
+```bash
+export BIFROST_TARGET=/path/to/your/project
+export DEEPSEEK_API_KEY=sk-...
+python3 calibratge/calibra.py --cases 9
+```
+
+It picks real methods out of your code, sends them through the same schema
+the server uses, and reports what came back — byte-identical on the identity
+task, syntactically valid, nothing lost. A tenth of a cent, and it answers
+the only question that matters before you point this at anything.
+
 ### Or drive it directly
 
 ```python

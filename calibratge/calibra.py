@@ -45,8 +45,11 @@ import urllib.request
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 
-TARGET_ROOT = Path("/home/yog-sottoth/projects/FixemBCN-APPv02")
-CALC_DIR = TARGET_ROOT / "private" / "Calc"
+# The codebase to calibrate against. Point it at your own: the harness picks
+# real methods out of it, so a synthetic fixture would measure nothing useful.
+TARGET_ROOT = Path(os.environ.get("BIFROST_TARGET", ".")).resolve()
+TARGET_GLOB = os.environ.get("BIFROST_TARGET_GLOB", "**/*.php")
+
 EXTRACT_PHP = Path(__file__).parent.parent / "mcp_bifrost" / "languages" / "extract.php"
 RESULTS_DIR = Path(__file__).parent / "results"
 
@@ -175,7 +178,9 @@ class Case:
 def pick_cases(limit: int) -> list[Case]:
     """Pick real methods, spread across size buckets and task types."""
     candidates = []
-    for f in sorted(CALC_DIR.glob("*.php")):
+    for f in sorted(TARGET_ROOT.glob(TARGET_GLOB)):
+        if "vendor" in f.parts or "node_modules" in f.parts:
+            continue
         data = php_symbols(f)
         whole = f.read_bytes()   # PHP offsets are byte offsets
         for s in data["symbols"]:
@@ -365,11 +370,15 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
+    if not TARGET_ROOT.is_dir():
+        print(f"BIFROST_TARGET is not a directory: {TARGET_ROOT}",
+              file=sys.stderr)
+        return 2
     if not EXTRACT_PHP.exists():
         print(f"missing {EXTRACT_PHP}", file=sys.stderr)
         return 2
 
-    print(f"selecting {args.cases} cases from {CALC_DIR}…")
+    print(f"selecting {args.cases} cases from {TARGET_ROOT}…")
     cases = pick_cases(args.cases)
     if not cases:
         print("no cases found", file=sys.stderr)
