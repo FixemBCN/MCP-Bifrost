@@ -211,6 +211,22 @@ Full coverage is not the ask. Something executable that loads your classes,
 exercises the main paths and fails loudly is enough — and you can build it
 *with* Bifrost, against low-risk code, as its first real job.
 
+Two pieces did the job on the codebase this was built against, and the shape
+generalises:
+
+- **A structural pass** that needs no data: every file parses, every class
+  loads, every route resolves to a handler that exists, no duplicate route
+  labels, every `require` points at something. It catches exactly what an
+  automated editor breaks, in seconds, with zero risk.
+- **A runner over whatever tests you already have**, using their exit codes
+  rather than their output. Snapshot your database before, restore it after,
+  and **verify the restore by hash** — a restore that silently fails is
+  worse than none, because nobody finds out until data is missing.
+
+Building that exposed two tests that had never been able to fail: they
+printed their failures and exited zero, so every runner would have counted
+them green forever. Assume yours has some of those, and check.
+
 ---
 
 ## Responsibility

@@ -551,8 +551,12 @@ before it was caught. Both are covered by mutation-verified regression tests.
 - substance gate (§5, gate 3)
 - write serialisation and cost limits (§10)
 - `revert_session()`
-- **a smoke test for the target codebase — blocking** for any bulk use
-  against business logic (see [RF-3](critical-review.md))
+- ✅ **a safety net for the target codebase** — done. A structural smoke
+  test (syntax, class loading, 319 router cases resolving to real handlers)
+  and a behavioural runner (15 tests, database snapshotted and restored with
+  the restore verified by hash). ~24s for a single green or red. Building it
+  exposed two tests that had never been able to fail. See
+  [RF-3](critical-review.md).
 
 **Phase 2 — generation on PHP**
 - `insert_symbol`, `create_file` with generation by analogy

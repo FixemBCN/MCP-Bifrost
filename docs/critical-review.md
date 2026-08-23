@@ -166,7 +166,32 @@ This replaces gates 2 and 3; it does not add to them.
 
 ---
 
-## 🔴 RF-3 — There is no semantic safety net underneath any of this
+## 🔴 RF-3 — ✅ RESOLVED — There is no semantic safety net underneath any of this
+
+> **Addressed 2026-08-23.** Two runners were built for the target codebase.
+> Together they take ~24 seconds and produce one green or red.
+>
+> `smoke.php` — structural, touches no data: 129 files parse, 53 classes
+> load, **319 router cases resolve to handlers that exist**, no duplicate
+> `case` labels, every `require __DIR__` resolves.
+>
+> `run.php` — behavioural: runs all 15 existing tests, snapshots the database
+> before and restores it after (including on Ctrl-C), and **verifies the
+> restore by hash** rather than announcing it.
+>
+> **Two of the 15 tests were false greens.** They printed their failures and
+> never exited non-zero, so any exit-code-based runner would have counted
+> them as passing forever. Both fixed.
+>
+> All three mechanisms were mutation-tested: a deliberately broken test
+> reports FAIL and exits 1; a hung test reports TIMEOUT, distinguished from
+> FAIL because the two are repaired differently; and a test that genuinely
+> wrote to the database had its table gone after the restore.
+>
+> **What this does not claim.** 15 behavioural tests over ~35,000 lines is a
+> net, not coverage. The finding below stands as written — this is the
+> minimum that makes bulk use defensible, not the point at which it becomes
+> safe.
 
 The plan delegates semantic validation to "the orchestrator runs the test
 suite". What actually exists in the target project:
@@ -394,7 +419,7 @@ produces.
 | 6 | Compact diff in the response above a threshold | Medium |
 | 7 | Hard symbol-size limit with explicit refusal | Medium |
 | 8 | A written criterion for **when not to use Bifrost**, in the tool description | Medium |
-| 9 | Build a smoke test for the target **before** bulk use | **Blocking** |
+| 9 | ~~Build a smoke test for the target before bulk use~~ | ✅ Done — see RF-3 |
 | 10 | Calibration should measure `ctx` with and without | Low, but cheap |
 | 11 | Idempotency key on retries | Low |
 | 12 | Document `php -l`'s limits and add the symbol-existence check | Low |

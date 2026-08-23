@@ -180,6 +180,13 @@ This replaces gates 2 and 3, it doesn't add to them.
 
 ## 🔴 RF-3 — There is no semantic safety net under any of this
 
+> **Resolved 2026-08-23.** A structural smoke test and a test runner with
+> database isolation were built for the target codebase; together ~24s for
+> one green or red. Building them found two of the fifteen existing tests
+> had never been able to fail. The finding below still stands as an
+> assessment: 15 behavioural tests over ~35,000 lines is a net, not
+> coverage.
+
 The plan delegates semantic validation to "Claude runs the test suite"
 (§3 of the original workflow). I looked at what's actually there:
 
