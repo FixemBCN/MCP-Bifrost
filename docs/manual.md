@@ -149,7 +149,6 @@ Add it to `.mcp.json` in the project you want to patch:
       "cwd": "/path/to/the/project/you/are/patching",
       "env": {
         "PYTHONPATH": "/path/to/MCP-Bifrost",
-        "DEEPSEEK_API_KEY": "sk-...",
         "BIFROST_DB": ".bifrost/history.db"
       }
     }
@@ -159,6 +158,21 @@ Add it to `.mcp.json` in the project you want to patch:
 
 `cwd` is the repository being patched, not Bifrost's own directory. The log
 lands in `.bifrost/` there — add it to that project's `.gitignore`.
+
+**The API key does not go in this file.** Put it in `.bifrost.env` at your
+project root and keep it out of version control:
+
+```bash
+echo "DEEPSEEK_API_KEY=sk-..." > .bifrost.env
+chmod 600 .bifrost.env
+echo ".bifrost.env" >> .gitignore
+```
+
+The server reads that file when the environment does not carry the key,
+walking up from its working directory. Relying on an exported variable
+instead works right up until whoever launches the client forgets to export
+it — and a missing MCP server does not announce itself, it simply fails to
+appear in the tool list.
 
 Restart Claude Code and the eleven tools appear.
 

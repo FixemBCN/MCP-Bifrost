@@ -91,6 +91,47 @@ class WorkerClient(Protocol):
 
 # ---------------------------------------------------------------- worker
 
+def _key_from_file() -> str | None:
+    """
+    Fall back to a key file when the environment does not carry the key.
+
+    Without this, the server depends on whoever launched the client having
+    exported the variable first — which works until the day they forget, and
+    then the tool silently is not there. A missing MCP server does not
+    announce itself; it just fails to appear in the list.
+
+    Looked for, in order: $BIFROST_ENV_FILE, then `.bifrost.env` walking up
+    from the working directory to the filesystem root. Accepts `KEY=value`
+    or `export KEY=value`, quoted or not. Comments and blank lines ignored.
+    """
+    import pathlib
+
+    candidates: list[pathlib.Path] = []
+    explicit = os.environ.get("BIFROST_ENV_FILE")
+    if explicit:
+        candidates.append(pathlib.Path(explicit))
+    here = pathlib.Path.cwd().resolve()
+    candidates += [p / ".bifrost.env" for p in [here, *here.parents]]
+
+    for path in candidates:
+        try:
+            if not path.is_file():
+                continue
+            for line in path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if line.startswith("export "):
+                    line = line[7:]
+                key, _, value = line.partition("=")
+                if key.strip() != "DEEPSEEK_API_KEY":
+                    continue
+                return value.strip().strip("'\"") or None
+        except OSError:
+            continue
+    return None
+
+
 class DeepSeekWorker:
     """DeepSeek-based code transformation worker."""
 
@@ -104,8 +145,9 @@ class DeepSeekWorker:
         """Initialize the worker.
 
         Args:
-            api_key: DeepSeek API key. Defaults to DEEPSEEK_API_KEY environment
-                     variable. Raises RuntimeError if neither is provided.
+            api_key: DeepSeek API key. Falls back to the DEEPSEEK_API_KEY
+                     environment variable, then to a `.bifrost.env` file
+                     (see _key_from_file). Raises RuntimeError if none works.
             model: Model identifier (default: "deepseek-chat").
             timeout: Request timeout in seconds (default: 180).
             base_url: API base URL (default: "https://api.deepseek.com").
@@ -114,11 +156,14 @@ class DeepSeekWorker:
             RuntimeError: If DEEPSEEK_API_KEY is not set and api_key is None.
         """
         if api_key is None:
-            api_key = os.environ.get("DEEPSEEK_API_KEY")
+            api_key = os.environ.get("DEEPSEEK_API_KEY") or _key_from_file()
             if not api_key:
                 raise RuntimeError(
-                    "DEEPSEEK_API_KEY environment variable not set. "
-                    "Set it or pass api_key to DeepSeekWorker."
+                    "No DeepSeek API key found. Either export "
+                    "DEEPSEEK_API_KEY, or put it in a `.bifrost.env` file at "
+                    "your project root as DEEPSEEK_API_KEY=sk-... (chmod 600, "
+                    "and keep it out of version control), or point "
+                    "BIFROST_ENV_FILE at such a file."
                 )
         self.api_key = api_key
         self.model = model
