@@ -224,7 +224,8 @@ meant.
 
 ### What this process did not provide
 
-No human has read all ~1,700 lines of this codebase line by line. The
+No human has read all ~7,400 lines of this repository — roughly 4,100 of
+server, 2,700 of tests and 600 of measurement harness — line by line. The
 confidence here comes from tests that were checked against deliberately
 broken code, from measurements against a real codebase, and from a design
 that refuses to write anything it cannot verify — not from manual audit.
