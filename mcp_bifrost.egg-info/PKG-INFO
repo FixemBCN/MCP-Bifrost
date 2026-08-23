@@ -1,3 +1,29 @@
+Metadata-Version: 2.4
+Name: mcp-bifrost
+Version: 0.1.0
+Summary: An MCP server that delegates mechanical code edits to a cheap worker model, validates them through a chain of gates, and applies them atomically.
+Author: Arnau Ferrerons Manich
+License-Expression: Apache-2.0
+Project-URL: Homepage, https://github.com/FixemBCN/MCP-Bifrost
+Project-URL: Documentation, https://github.com/FixemBCN/MCP-Bifrost/blob/main/docs/manual.md
+Project-URL: Source, https://github.com/FixemBCN/MCP-Bifrost
+Project-URL: Issues, https://github.com/FixemBCN/MCP-Bifrost/issues
+Keywords: mcp,model-context-protocol,code-generation,ast,llm
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: PHP
+Classifier: Topic :: Software Development :: Code Generators
+Classifier: Topic :: Software Development :: Quality Assurance
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+License-File: NOTICE
+Dynamic: license-file
+
 <picture>
   <source media="(prefers-color-scheme: dark)"
           srcset="assets/Bifrost_Logo_DarkBackground.png">
@@ -11,7 +37,7 @@
 result passing through the expensive one's context — and without writing
 anything to disk that does not compile.**
 
-[![tests](https://img.shields.io/badge/tests-128%20passing-2ea44f)](tests/)
+[![tests](https://img.shields.io/badge/tests-125%20passing-2ea44f)](tests/)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![targets](https://img.shields.io/badge/targets-PHP%20%7C%20Python-777)](docs/comparison.md)
@@ -243,12 +269,12 @@ way it comes out gets published.
 
 ## Quick start
 
-Python 3.11+. **No runtime dependencies** — the server runs on the standard
-library, and each language is parsed by its own official tooling (`php` as an
-external binary, `ast` from the stdlib).
+Python 3.11+, standard library only. No `pip install`.
 
 ```bash
-pipx install mcp-bifrost      # or: uv tool install mcp-bifrost
+git clone https://github.com/FixemBCN/MCP-Bifrost.git
+cd MCP-Bifrost
+python3 -m unittest discover tests    # 125 tests, ~15s
 ```
 
 Add it to `.mcp.json` in the project you want to patch:
@@ -257,20 +283,15 @@ Add it to `.mcp.json` in the project you want to patch:
 {
   "mcpServers": {
     "bifrost": {
-      "command": "mcp-bifrost",
-      "env": { "BIFROST_DB": ".bifrost/history.db" }
+      "command": "python3",
+      "args": ["-m", "mcp_bifrost.server"],
+      "env": {
+        "PYTHONPATH": "/path/to/MCP-Bifrost",
+        "BIFROST_DB": ".bifrost/history.db"
+      }
     }
   }
 }
-```
-
-Or from source, without installing:
-
-```bash
-git clone https://github.com/FixemBCN/MCP-Bifrost.git
-cd MCP-Bifrost
-python3 -m unittest discover tests    # 128 tests, ~15s
-python3 -m mcp_bifrost.server         # same server, PYTHONPATH=.
 ```
 
 **The key does not go in that file.** Put it in `.bifrost.env` at your project
@@ -333,7 +354,7 @@ would have corrupted files silently in production. Full write-up:
 |---|---|
 | `mcp_bifrost/` | the server |
 | [`docs/`](docs/) | manual, architecture, critical review, calibration, comparison, licensing |
-| `tests/` | 128 tests |
+| `tests/` | 125 tests |
 | [`brainstorm/`](brainstorm/) | the working record — how each decision was reached, including the reversed ones |
 | `calibratge/` | the measurement harness |
 
@@ -371,7 +392,7 @@ Those corrections sit above the original claims rather than replacing them.
 
 **Claude Opus — the core; delegated models — the periphery.** Claude wrote
 the parsing, patching, validation gates, secret handling and engine directly.
-Two peripheral modules and the entire test suite were delegated to
+Two peripheral modules and the entire 125-test suite were delegated to
 smaller models (Haiku and Sonnet) running as subagents. The split was
 deliberate rather than economical: a model starting cold on the patching code
 would very plausibly have reintroduced the byte-offset bug, because the

@@ -333,7 +333,13 @@ class Server:
     if keeping up with spec revisions by hand becomes the larger cost.
     """
 
-    PROTOCOL = "2024-11-05"
+    # Versions this server can speak, newest first. The list exists because
+    # the correct answer to `initialize` is the client's version when we
+    # support it, not ours unconditionally — a client that asked for one
+    # thing and is told another has to decide whether to proceed, and the
+    # stricter ones do not.
+    PROTOCOLS = ("2025-06-18", "2025-03-26", "2024-11-05")
+    PROTOCOL = PROTOCOLS[0]
 
     def __init__(self, engine: Engine) -> None:
         self.engine = engine
@@ -343,8 +349,10 @@ class Server:
         rid = req.get("id")
 
         if method == "initialize":
+            asked = (req.get("params") or {}).get("protocolVersion")
+            agreed = asked if asked in self.PROTOCOLS else self.PROTOCOL
             return self._ok(rid, {
-                "protocolVersion": self.PROTOCOL,
+                "protocolVersion": agreed,
                 "capabilities": {"tools": {}},
                 "serverInfo": {"name": "mcp-bifrost", "version": "0.1.0"},
             })

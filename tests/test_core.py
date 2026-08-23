@@ -620,3 +620,38 @@ class TestInterpolationBraces(unittest.TestCase):
             block = sym.extract(p.read_bytes())
             self.assertEqual(block.count(b"{") - block.count(b"}"), 0,
                              f"{sym.fqn} unbalanced")
+
+
+class TestPackaging(unittest.TestCase):
+    """
+    The PHP parser is a data file inside a Python package.
+
+    A wheel built without it installs cleanly and then fails at runtime on
+    every PHP operation — the worst shape a packaging bug can take, because
+    nothing is wrong until the first real use. These assertions fail if the
+    package-data declaration is ever dropped.
+    """
+
+    def test_extractor_ships_beside_the_module(self):
+        from mcp_bifrost.languages.php import EXTRACTOR
+        self.assertTrue(EXTRACTOR.exists(), f"{EXTRACTOR} is missing")
+        self.assertIn("mcp_bifrost", EXTRACTOR.parts)
+        self.assertEqual(EXTRACTOR.suffix, ".php")
+
+    def test_extractor_is_resolved_relative_to_the_package(self):
+        """Not relative to the working directory: an installed package is
+        never run from its own source tree."""
+        import mcp_bifrost.languages.php as mod
+        from mcp_bifrost.languages.php import EXTRACTOR
+        self.assertTrue(
+            str(EXTRACTOR).startswith(str(Path(mod.__file__).parent)),
+            "the extractor path is not anchored to the package directory")
+
+    def test_pyproject_declares_the_php_file(self):
+        root = Path(__file__).resolve().parent.parent
+        pyproject = root / "pyproject.toml"
+        if not pyproject.exists():
+            self.skipTest("running outside the source tree")
+        text = pyproject.read_text(encoding="utf-8")
+        self.assertIn("package-data", text)
+        self.assertIn('"*.php"', text)

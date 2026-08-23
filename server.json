@@ -1,0 +1,42 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "name": "io.github.FixemBCN/mcp-bifrost",
+  "description": "Delegates mechanical code edits to a cheap worker model, validates them through a chain of gates, and applies them atomically. PHP and Python.",
+  "repository": {
+    "url": "https://github.com/FixemBCN/MCP-Bifrost",
+    "source": "github"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "mcp-bifrost",
+      "version": "0.1.0",
+      "transport": { "type": "stdio" },
+      "environmentVariables": [
+        {
+          "name": "DEEPSEEK_API_KEY",
+          "description": "Worker API key. Not needed when BIFROST_WORKER_BASE_URL points at a local endpoint.",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "BIFROST_WORKER_BASE_URL",
+          "description": "OpenAI-compatible endpoint for the worker model. Set this to run a local model so no code leaves the machine.",
+          "isRequired": false
+        },
+        {
+          "name": "BIFROST_WORKER_MODEL",
+          "description": "Worker model identifier. Defaults to deepseek-chat.",
+          "isRequired": false
+        },
+        {
+          "name": "BIFROST_DB",
+          "description": "Path to the operational log. Defaults to .bifrost/history.db in the working directory.",
+          "isRequired": false
+        }
+      ]
+    }
+  ]
+}

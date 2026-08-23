@@ -134,9 +134,15 @@ Findings carry a pattern name and a line number, never the matched text.
 ### Get it
 
 ```bash
+pipx install mcp-bifrost      # or: uv tool install mcp-bifrost
+```
+
+Or from source:
+
+```bash
 git clone https://github.com/FixemBCN/MCP-Bifrost.git
 cd MCP-Bifrost
-python3 -m unittest discover tests    # 125 tests, ~15s
+python3 -m unittest discover tests    # 128 tests, ~15s
 ```
 
 ### Connect it to Claude Code
@@ -147,13 +153,9 @@ Add it to `.mcp.json` in the project you want to patch:
 {
   "mcpServers": {
     "bifrost": {
-      "command": "python3",
-      "args": ["-m", "mcp_bifrost.server"],
+      "command": "mcp-bifrost",
       "cwd": "/path/to/the/project/you/are/patching",
-      "env": {
-        "PYTHONPATH": "/path/to/MCP-Bifrost",
-        "BIFROST_DB": ".bifrost/history.db"
-      }
+      "env": { "BIFROST_DB": ".bifrost/history.db" }
     }
   }
 }

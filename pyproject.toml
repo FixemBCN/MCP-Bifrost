@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcp-bifrost"
+version = "0.1.0"
+description = "An MCP server that delegates mechanical code edits to a cheap worker model, validates them through a chain of gates, and applies them atomically."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "Arnau Ferrerons Manich" }]
+keywords = ["mcp", "model-context-protocol", "code-generation", "ast", "llm"]
+
+# No runtime dependencies, and that is a design property rather than an
+# oversight: the server speaks JSON-RPC over stdio with the standard library,
+# and each language is parsed by its own official tooling — `php` as an
+# external binary, `ast` from the stdlib. Adding a dependency here would mean
+# giving one of those up.
+dependencies = []
+
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: PHP",
+  "Topic :: Software Development :: Code Generators",
+  "Topic :: Software Development :: Quality Assurance",
+]
+
+[project.urls]
+Homepage = "https://github.com/FixemBCN/MCP-Bifrost"
+Documentation = "https://github.com/FixemBCN/MCP-Bifrost/blob/main/docs/manual.md"
+Source = "https://github.com/FixemBCN/MCP-Bifrost"
+Issues = "https://github.com/FixemBCN/MCP-Bifrost/issues"
+
+[project.scripts]
+mcp-bifrost = "mcp_bifrost.server:main"
+
+[tool.setuptools]
+# Explicit rather than discovered: `tests`, `calibratge` and `brainstorm` are
+# part of the repository but not part of the installed package.
+packages = ["mcp_bifrost", "mcp_bifrost.languages"]
+
+[tool.setuptools.package-data]
+# extract.php is not documentation or an example — it IS the PHP parser. A
+# wheel without it installs cleanly and then fails at runtime on every PHP
+# operation, which is the worst shape a packaging bug can take. There is a
+# test that opens the installed copy for exactly this reason.
+"mcp_bifrost.languages" = ["*.php"]
