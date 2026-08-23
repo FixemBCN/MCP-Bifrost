@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: mcp-bifrost
-Version: 0.1.0
+Version: 0.1.1
 Summary: An MCP server that delegates mechanical code edits to a cheap worker model, validates them through a chain of gates, and applies them atomically.
 Author: Arnau Ferrerons Manich
 License-Expression: Apache-2.0
@@ -23,6 +23,8 @@ Description-Content-Type: text/markdown
 License-File: LICENSE
 License-File: NOTICE
 Dynamic: license-file
+
+<!-- mcp-name: io.github.FixemBCN/mcp-bifrost -->
 
 <picture>
   <source media="(prefers-color-scheme: dark)"

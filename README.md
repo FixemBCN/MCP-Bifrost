@@ -1,3 +1,5 @@
+<!-- mcp-name: io.github.FixemBCN/mcp-bifrost -->
+
 <picture>
   <source media="(prefers-color-scheme: dark)"
           srcset="https://raw.githubusercontent.com/FixemBCN/MCP-Bifrost/main/assets/Bifrost_Logo_DarkBackground.png">
