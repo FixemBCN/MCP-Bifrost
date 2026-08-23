@@ -1,7 +1,7 @@
 <picture>
   <source media="(prefers-color-scheme: dark)"
-          srcset="assets/Bifrost_Logo_DarkBackground.png">
-  <img src="assets/Bifrost_Logo_transparentBackground.png"
+          srcset="https://raw.githubusercontent.com/FixemBCN/MCP-Bifrost/main/assets/Bifrost_Logo_DarkBackground.png">
+  <img src="https://raw.githubusercontent.com/FixemBCN/MCP-Bifrost/main/assets/Bifrost_Logo_transparentBackground.png"
        alt="MCP-Bifrost" width="60" align="right">
 </picture>
 
@@ -11,10 +11,10 @@
 result passing through the expensive one's context — and without writing
 anything to disk that does not compile.**
 
-[![tests](https://img.shields.io/badge/tests-128%20passing-2ea44f)](tests/)
-[![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![tests](https://img.shields.io/badge/tests-128%20passing-2ea44f)](https://github.com/FixemBCN/MCP-Bifrost/blob/main/tests/)
+[![license](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/FixemBCN/MCP-Bifrost/blob/main/LICENSE)
 [![python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
-[![targets](https://img.shields.io/badge/targets-PHP%20%7C%20Python-777)](docs/comparison.md)
+[![targets](https://img.shields.io/badge/targets-PHP%20%7C%20Python-777)](https://github.com/FixemBCN/MCP-Bifrost/blob/main/docs/comparison.md)
 
 An MCP server that takes code work already analysed and split up by an
 orchestrating model, extracts the exact target block with the language's own
@@ -46,7 +46,7 @@ pass through its context at all.
 |---|---|---|
 | 202 methods × ~800 tok | **~161,000 tok** — exceeds a context window | ~15,000 tok |
 
-**The honest version** (see [RF-4](docs/critical-review.md)): for a single
+**The honest version** (see [RF-4](https://github.com/FixemBCN/MCP-Bifrost/blob/main/docs/critical-review.md)): for a single
 small edit the saving is real but modest, because the orchestrator usually
 had to read the code anyway to say what it wanted. The order-of-magnitude win
 is in volume — transformations across many symbols where the instruction can
@@ -61,7 +61,7 @@ That is the use case this is built for. Not "fix this bug."
 - **Exploratory work.** "Find why this crashes" is not an instruction Bifrost
   can execute. It needs to know the symbols before it starts.
 - **Single small edits.** The token arithmetic is marginal, and we say so
-  ([RF-4](docs/critical-review.md)). Use your agent's normal edit tool.
+  ([RF-4](https://github.com/FixemBCN/MCP-Bifrost/blob/main/docs/critical-review.md)). Use your agent's normal edit tool.
 - **Latency-sensitive loops.** ~2.6 s per block, measured against DeepSeek.
 - **Anything that is not PHP or Python.** Adding a language means writing a
   parser adapter, not rewriting the core — but it is not there today.
@@ -71,7 +71,7 @@ That is the use case this is built for. Not "fix this bug."
   checks form; none understands meaning.
 
 How this sits next to Aider, Serena and fast-apply models — including where
-they are better — is in [`docs/comparison.md`](docs/comparison.md).
+they are better — is in [`docs/comparison.md`](https://github.com/FixemBCN/MCP-Bifrost/blob/main/docs/comparison.md).
 
 ---
 
@@ -110,7 +110,7 @@ built, and then **deleted**: the server rebuilds the file as
 `original[:start] + block + original[end:]`, so the perimeter is preserved by
 construction and the check can never fail. Calibration confirmed it — the
 gate reported 9/9 while three files were left syntactically broken. See
-[RF-1](docs/critical-review.md).
+[RF-1](https://github.com/FixemBCN/MCP-Bifrost/blob/main/docs/critical-review.md).
 
 ### Rollback
 
@@ -284,7 +284,7 @@ echo ".bifrost.env" >> .gitignore
 
 Or skip the key entirely and point `BIFROST_WORKER_BASE_URL` at a local
 model. Full instructions, and what to do before pointing this at anything
-that matters, are in [the manual](docs/manual.md).
+that matters, are in [the manual](https://github.com/FixemBCN/MCP-Bifrost/blob/main/docs/manual.md).
 
 ### Tools
 
@@ -323,7 +323,7 @@ fences, 2.6 s average latency.
 
 It also caught a byte-offset bug that had nothing to do with the worker and
 would have corrupted files silently in production. Full write-up:
-[docs/calibration.md](docs/calibration.md).
+[docs/calibration.md](https://github.com/FixemBCN/MCP-Bifrost/blob/main/docs/calibration.md).
 
 ---
 
@@ -332,9 +332,9 @@ would have corrupted files silently in production. Full write-up:
 | Path | What |
 |---|---|
 | `mcp_bifrost/` | the server |
-| [`docs/`](docs/) | manual, architecture, critical review, calibration, comparison, licensing |
+| [`docs/`](https://github.com/FixemBCN/MCP-Bifrost/blob/main/docs/) | manual, architecture, critical review, calibration, comparison, licensing |
 | `tests/` | 128 tests |
-| [`brainstorm/`](brainstorm/) | the working record — how each decision was reached, including the reversed ones |
+| [`brainstorm/`](https://github.com/FixemBCN/MCP-Bifrost/blob/main/brainstorm/) | the working record — how each decision was reached, including the reversed ones |
 | `calibratge/` | the measurement harness |
 
 ---
@@ -360,7 +360,7 @@ produced twelve findings. Two killed design elements I had approved: the
 central "perimeter check" the spec relied on turned out to be incapable of
 failing, and the project's stated justification — token savings — was shown
 to be marginal for single edits and only decisive in bulk. Both are
-preserved, unedited, in [`brainstorm/`](brainstorm/).
+preserved, unedited, in [`brainstorm/`](https://github.com/FixemBCN/MCP-Bifrost/blob/main/brainstorm/).
 
 **Measurement before code.** Rather than trusting the design, a calibration
 harness was built first and run against the real worker on real code. It
@@ -398,7 +398,7 @@ write anything it cannot verify — not from manual audit.
 
 If that is not the kind of confidence you want in a tool that edits your
 source files, that is a reasonable position, and the
-[responsibility section](docs/manual.md#responsibility) is specific about
+[responsibility section](https://github.com/FixemBCN/MCP-Bifrost/blob/main/docs/manual.md#responsibility) is specific about
 what the gates do and do not catch.
 
 ### Why this is in the README
@@ -418,14 +418,14 @@ was wrong and said so.
 
 | Document | What it is |
 |---|---|
-| [Manual](docs/manual.md) | what it is, what it can do, how to install it, and what you are responsible for |
-| [Architecture](docs/architecture.md) | what gets built and why |
-| [Critical review](docs/critical-review.md) | a fresh-eyes pass hunting for reasons this fails — twelve findings, two later refuted by measurement |
-| [Calibration results](docs/calibration.md) | what the worker actually did when asked |
-| [Comparison](docs/comparison.md) | how this sits next to Aider, Serena and fast-apply — and where they win |
-| [Licensing](docs/licensing.md) | what we consume, what we grant |
+| [Manual](https://github.com/FixemBCN/MCP-Bifrost/blob/main/docs/manual.md) | what it is, what it can do, how to install it, and what you are responsible for |
+| [Architecture](https://github.com/FixemBCN/MCP-Bifrost/blob/main/docs/architecture.md) | what gets built and why |
+| [Critical review](https://github.com/FixemBCN/MCP-Bifrost/blob/main/docs/critical-review.md) | a fresh-eyes pass hunting for reasons this fails — twelve findings, two later refuted by measurement |
+| [Calibration results](https://github.com/FixemBCN/MCP-Bifrost/blob/main/docs/calibration.md) | what the worker actually did when asked |
+| [Comparison](https://github.com/FixemBCN/MCP-Bifrost/blob/main/docs/comparison.md) | how this sits next to Aider, Serena and fast-apply — and where they win |
+| [Licensing](https://github.com/FixemBCN/MCP-Bifrost/blob/main/docs/licensing.md) | what we consume, what we grant |
 
-[`brainstorm/`](brainstorm/) holds the working record: the original spec, the
+[`brainstorm/`](https://github.com/FixemBCN/MCP-Bifrost/blob/main/brainstorm/) holds the working record: the original spec, the
 design journal across five revisions, the adversarial review, and the
 calibration results. `docs/` is the reference and wins where the two differ.
 
@@ -436,7 +436,7 @@ calibration results. `docs/` is the reference and wins where the two differ.
 This tool edits your source files automatically using a language model.
 Apache 2.0 means it is provided **as is, without warranty**: you are
 responsible for what it does to your code. Read the diffs, run your tests,
-deploy on purpose. The [manual](docs/manual.md#responsibility) is specific
+deploy on purpose. The [manual](https://github.com/FixemBCN/MCP-Bifrost/blob/main/docs/manual.md#responsibility) is specific
 about what the gates do and do not catch.
 
 ## Contributing
@@ -446,11 +446,11 @@ something here is wrong. This project has already deleted one validation gate
 for being tautological and refuted two of its own claims with measurement.
 
 One convention, and it is the one that matters: **every test must be able to
-fail.** Details in the [manual](docs/manual.md#contributing).
+fail.** Details in the [manual](https://github.com/FixemBCN/MCP-Bifrost/blob/main/docs/manual.md#contributing).
 
 ## License
 
-[Apache License 2.0](LICENSE).
+[Apache License 2.0](https://github.com/FixemBCN/MCP-Bifrost/blob/main/LICENSE).
 
 Built on the [Model Context Protocol](https://modelcontextprotocol.io),
 MIT-licensed by Anthropic, PBC. MCP-Bifrost is an independent project and is
