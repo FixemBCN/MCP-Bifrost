@@ -4,9 +4,12 @@ Images referenced from the documentation.
 
 | File | Used by | Notes |
 |---|---|---|
-| `logo.svg` | `README.md` header | preferred — scales, and one file works at any size |
-| `logo-dark.svg` | `README.md` header | only if the main logo is unreadable on a dark background |
-| `social-preview.png` | GitHub link cards | 1280×640, uploaded through GitHub's settings, not from here |
+| `Bifrost_Logo_transparentBackground.png` | `README.md`, light theme | black dots — reads on a light background |
+| `Bifrost_Logo_DarkBackground.png` | `README.md`, dark theme | white dots — reads on a dark background |
+| `Bifrost_Logo_wb.png` | spare | same mark with a baked-in white background |
+
+The README picks between the first two with a `<picture>` element, so the
+mark stays legible whichever theme the reader is using.
 
 GitHub renders README files on both light and dark backgrounds, and does not
 let CSS decide between them. A logo with dark ink on a transparent

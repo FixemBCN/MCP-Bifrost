@@ -1,3 +1,10 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="assets/Bifrost_Logo_DarkBackground.png">
+  <img src="assets/Bifrost_Logo_transparentBackground.png"
+       alt="MCP-Bifrost" width="120" align="right">
+</picture>
+
 # MCP-Bifrost
 
 **Status: working.** PHP and Python, eleven tools, 125 tests.
