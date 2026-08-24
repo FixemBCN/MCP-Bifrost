@@ -109,7 +109,7 @@ passes.
 |---|---|---|
 | **0 — offsets** | the block on disk is byte-identical to what we sent the worker | on |
 | **1 — syntax** | the rebuilt file passes `php -l` / `ast.parse()` | on |
-| **2 — one symbol** | the returned block defines exactly one symbol | on |
+| **2 — one symbol** | the returned block defines exactly one symbol — a class counts as one, whatever it holds | on |
 | **3 — substance** | no call, variable or control keyword vanished silently | **off** |
 
 **Three are on by default, not four.** The substance gate is a coarse regex
@@ -357,6 +357,7 @@ would have corrupted files silently in production. Full write-up:
 | `tests/` | 287 tests — 80 need `php`, 86 need `git`, skipped when absent |
 | [`brainstorm/`](https://github.com/FixemBCN/MCP-Bifrost/blob/main/brainstorm/) | the working record — how each decision was reached, including the reversed ones |
 | `calibratge/` | the measurement harness |
+| [`.github/`](https://github.com/FixemBCN/MCP-Bifrost/blob/main/.github/workflows/tests.yml) | the workflow the badge reports: the suite with `php`, and again without it |
 
 ---
 
@@ -392,8 +393,12 @@ Those corrections sit above the original claims rather than replacing them.
 
 **Claude Opus — the core; delegated models — the periphery.** Claude wrote
 the parsing, patching, validation gates, secret handling and engine directly.
-Two peripheral modules and the entire test suite were delegated to
-smaller models (Haiku and Sonnet) running as subagents. The split was
+Two peripheral modules and the whole of the original test suite were
+delegated to smaller models (Haiku and Sonnet) running as subagents. That
+suite has since roughly doubled: the tests added in 0.1.2–0.1.5 were written
+by Opus and applied through Bifrost itself, and they exist because the
+original 128 never executed the MCP server, the worker's HTTP client, the
+VCS layer or the Python adapter at all. The split was
 deliberate rather than economical: a model starting cold on the patching code
 would very plausibly have reintroduced the byte-offset bug, because the
 natural way to write that code is the wrong way.
@@ -411,8 +416,8 @@ meant.
 
 ### What this process did not provide
 
-No human has read all ~7,400 lines of this repository — roughly 4,100 of
-server, 2,700 of tests and 600 of measurement harness — line by line. The
+No human has read all ~10,700 lines of this repository — roughly 4,600 of
+server, 5,400 of tests and 700 of measurement harness — line by line. The
 confidence here comes from tests checked against deliberately broken code,
 from measurements against a real codebase, and from a design that refuses to
 write anything it cannot verify — not from manual audit.
