@@ -37,7 +37,31 @@ What that makes possible:
   top of its body, including the one-line `class Marker {}` shape, where the
   insertion has to break the line itself.
 
-### Fixed — three defects the change exposed
+### Fixed — `fix_range` produced code at column zero
+
+The escape hatch, and the one tool whose offsets are computed by hand from
+line numbers rather than handed over by a parser. It had no test.
+
+A range began at the start of its first line, and so included that line's
+indentation; a symbol's `start_byte` does not — it points at
+`public function`, not at the whitespace before it. `apply_indent` pads every
+line *but* the first for exactly that reason, so the strip-and-restore round
+trip did not hold, `normalise` gave up as designed, and the block went to the
+worker with its real indentation and an empty `indent` field. The worker,
+following the system prompt, returned it at column zero, and that is where it
+was spliced.
+
+In Python gate 1 caught it every time — `expected an indented block` — which
+means `fix_range` simply did not work on indented code. In PHP, where
+indentation carries no meaning to the parser, it passed the gates and
+flattened the range. The range now starts after the first line's indentation,
+as a symbol does.
+
+Overshooting the end of the file also reported one line more than the file
+has: splitting on the newline leaves a phantom element after a trailing one,
+and it was being counted.
+
+### Fixed — three defects the container change exposed
 
 - **The container stack never popped.** The condition was `depth > $depth`,
   which is never true for a class declared at the top level, so the stack
@@ -64,8 +88,11 @@ What that makes possible:
   extents proved by slicing each one out and running `php -l` on it, the two
   attribution regressions, gate 2's counting, inserting a class, and
   `end_of_class` against a container in both languages.
+- `tests/test_range_revert.py` — `fix_range` and `revert_patch`, the last two
+  tools nothing exercised. Including the case the tool exists for: code that
+  lives outside any symbol, where a parser offers no address at all.
 
-269 tests, coverage 80%.
+285 tests, coverage 82%.
 
 ---
 

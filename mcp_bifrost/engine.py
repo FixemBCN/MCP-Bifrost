@@ -150,18 +150,36 @@ class Engine:
         adapter = adapter_for(path)
         source = path.read_bytes()
         lines = source.split(b"\n")
-        if end_line > len(lines):
+        # Splitting on the newline leaves a phantom empty element after a
+        # trailing one. It is not a line, and counting it told anyone who
+        # overshot that the file had one more line than it has.
+        n_lines = len(lines) - 1 if source.endswith(b"\n") else len(lines)
+        if end_line > n_lines:
             return Outcome(False,
-                           f"file has {len(lines)} lines, asked for {end_line}",
+                           f"file has {n_lines} lines, asked for {end_line}",
                            gate="input")
 
-        # Byte offsets from line numbers. +1 per line for the newline we
-        # split on; the last line of the range keeps no trailing newline.
-        start = sum(len(l) + 1 for l in lines[:start_line - 1])
-        end = start + sum(len(l) + 1 for l in lines[start_line - 1:end_line]) - 1
+        # Byte offset of the first byte of each line.
+        starts, pos = [], 0
+        for line in lines:
+            starts.append(pos)
+            pos += len(line) + 1
 
+        # The range begins AFTER the first line's indentation, exactly as a
+        # symbol does: `start_byte` for a method points at `public function`,
+        # not at the whitespace before it. That is the invariant
+        # `apply_indent` relies on — it pads every line but the first,
+        # because the first one's padding is already in the file and putting
+        # it back would double it. Starting at the beginning of the line
+        # broke the round trip, so `normalise` gave up and the worker was
+        # handed an indented block to reproduce by hand: the one thing
+        # calibration showed it gets wrong.
         first = lines[start_line - 1]
-        indent = first[:len(first) - len(first.lstrip())].decode("utf-8", "replace")
+        pad = b"" if not first.strip() else first[:len(first) - len(first.lstrip())]
+        indent = pad.decode("utf-8", "replace")
+
+        start = starts[start_line - 1] + len(pad)
+        end = starts[end_line - 1] + len(lines[end_line - 1])
 
         size = gates.check_size(end_line - start_line + 1, self.size_limit)
         if not size:
