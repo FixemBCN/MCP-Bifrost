@@ -8,6 +8,33 @@ the version was tagged.
 
 ---
 
+## 0.1.5 — 2026-08-24
+
+### Fixed — the package did not import on Python 3.11
+
+`patcher.py` built two strings as `f"+{block.count(b'\n') + 1}/-0"`. A
+backslash inside an f-string expression is a `SyntaxError` before Python
+3.12, which PEP 701 changed, and this package declares 3.11 as its minimum
+and lists it in its classifiers. So `mcp_bifrost` did not fail a test on
+3.11 — it did not load at all, for anyone, on the oldest version it claims
+to support.
+
+Nothing running locally could have found it: the author's interpreter is
+3.14, where the line is ordinary. The CI matrix added in 0.1.2 found it on
+its first run, which is the entire argument for a badge that reports a
+workflow rather than a number typed by hand.
+
+`ast.parse(..., feature_version=(3, 11))` does not detect it either — the
+3.12 tokenizer reads f-strings its own way whatever version is asked of it —
+so the guard checks the construct instead, walking each module's tree and
+reading every interpolated expression back out of the source. It names both
+lines that caused this one.
+
+**0.1.4 was tagged but never published.** It carries the same defect; use
+this one.
+
+---
+
 ## 0.1.4 — 2026-08-24
 
 ### Changed — a class is a symbol

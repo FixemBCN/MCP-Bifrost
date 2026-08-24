@@ -12,6 +12,7 @@ Run: python3 -m unittest discover tests -v   (from the repo root)
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
@@ -731,3 +732,57 @@ class VersionConsistencyTest(unittest.TestCase):
         self.assertEqual(
             declared, headings[0],
             f"CHANGELOG.md leads with {headings[0]}, not the declared {declared}")
+
+
+class MinimumPythonSyntaxTest(unittest.TestCase):
+    """
+    Every module must parse under the oldest Python the package claims.
+
+    `f"+{block.count(b'\\n') + 1}/-0"` is ordinary in 3.12 and a SyntaxError
+    in 3.11, which PEP 701 changed. The package declares 3.11 as its
+    minimum, so that line did not fail a test — it stopped `mcp_bifrost`
+    from importing at all for everyone on the declared minimum, while
+    passing cleanly on the author's newer interpreter. CI found it; nothing
+    running locally could.
+
+    `ast.parse(..., feature_version=(3, 11))` is no help: the 3.12 tokenizer
+    reads f-strings its own way whatever version is asked of it. So the
+    construct is what gets checked, by walking the tree and reading each
+    interpolated expression back out of the source.
+    """
+
+    @staticmethod
+    def _modules() -> list[Path]:
+        root = Path(__file__).resolve().parent.parent / "mcp_bifrost"
+        return sorted(root.rglob("*.py"))
+
+    def test_no_f_string_expression_contains_a_backslash(self):
+        offenders = []
+        for module in self._modules():
+            source = module.read_text(encoding="utf-8")
+            for node in ast.walk(ast.parse(source)):
+                if not isinstance(node, ast.FormattedValue):
+                    continue
+                segment = ast.get_source_segment(source, node.value) or ""
+                if "\\" in segment:
+                    offenders.append(f"{module.name}:{node.lineno}: {segment}")
+        self.assertEqual(
+            [], offenders,
+            "a backslash inside an f-string expression is a SyntaxError "
+            "before Python 3.12, which this package supports: "
+            + "; ".join(offenders))
+
+    def test_the_declared_minimum_is_the_one_this_checks_against(self):
+        """If the floor is raised past 3.12 the check above stops being
+        necessary, and should go rather than linger as folklore."""
+        import tomllib
+
+        root = Path(__file__).resolve().parent.parent
+        pyproject = root / "pyproject.toml"
+        if not pyproject.exists():
+            self.skipTest("running outside the source tree")
+        requires = tomllib.loads(
+            pyproject.read_text(encoding="utf-8"))["project"]["requires-python"]
+        self.assertEqual(
+            ">=3.11", requires,
+            "the minimum Python changed; revisit the f-string check above")

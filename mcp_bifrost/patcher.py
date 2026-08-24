@@ -215,9 +215,14 @@ def insert_at(path: Path, at: int, block: bytes, anchor_src: bytes,
     blob = stash_blob(repo, current)
     atomic_write(path, candidate)
 
+    # The count is computed outside the f-string: a backslash inside an
+    # f-string expression is a SyntaxError before Python 3.12, and this
+    # package declares 3.11 as its minimum. It cost an import failure on
+    # every 3.11 install — not a failing test, a module that will not load.
+    added = block.count(b"\n") + 1
     return Applied(path=path, blob_before=blob, bytes_before=len(current),
                    bytes_after=len(candidate),
-                   diff_stat=f"+{block.count(b'\n') + 1}/-0")
+                   diff_stat=f"+{added}/-0")
 
 
 def create(path: Path, content: bytes, adapter) -> Applied | GateResult:
@@ -244,6 +249,7 @@ def create(path: Path, content: bytes, adapter) -> Applied | GateResult:
         Path(tmp).unlink(missing_ok=True)
         raise
 
+    added = content.count(b"\n") + 1
     return Applied(path=path, blob_before="", bytes_before=0,
                    bytes_after=len(content),
-                   diff_stat=f"+{content.count(b'\n') + 1}/-0")
+                   diff_stat=f"+{added}/-0")
