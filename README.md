@@ -226,7 +226,9 @@ back before the file is written — every placeholder must return exactly once
 or nothing is written at all. What cannot be safely redacted blocks the send
 outright. Measured false-positive rate on a real codebase: 2 findings across
 1,291 symbols, both correct refusals of code that *manipulates* keys rather
-than holding one.
+than holding one. That count is from 0.1.0, when the symbol map held methods
+and functions only; classes became addressable in 0.1.4, so a rerun today
+counts a larger denominator.
 
 If your constraint is that nothing may leave at all, the answer is a local
 worker, not a smaller payload.
@@ -437,6 +439,13 @@ validation that generated code could be trusted at all.
 The repository deliberately keeps the reasoning, the rejected ideas, the
 adversarial review and the measurements — including the parts where the AI
 was wrong and said so.
+
+**This account stops at the first release, and the work did not.** What has
+happened since is in [`CHANGELOG.md`](https://github.com/FixemBCN/MCP-Bifrost/blob/main/CHANGELOG.md),
+which records each defect as it was found and what it had been doing
+unnoticed; how the design was arrived at before that is in
+[`brainstorm/`](https://github.com/FixemBCN/MCP-Bifrost/blob/main/brainstorm/)
+and [`docs/critical-review.md`](https://github.com/FixemBCN/MCP-Bifrost/blob/main/docs/critical-review.md).
 
 ---
 
