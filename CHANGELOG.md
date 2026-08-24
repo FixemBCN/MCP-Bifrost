@@ -57,6 +57,20 @@ minutes.
   the end of a line's text. Adding a fixed count to both gave one of them a
   blank line too many.
 
+- **`state().dirty` truncated the first filename it reported.** `_git()`
+  stripped whitespace from every result, which is right for the one-line
+  answers it mostly returns and wrong for `git status --porcelain`, whose
+  first column is the status code and legitimately begins with a space for
+  an unstaged modification. Stripping ate that space, and the fixed-width
+  slice that follows then removed the first character of the path: `a.txt`
+  came back as `.txt`. Only the first line was affected, which is the shape
+  of bug that survives casual testing.
+
+- **`open_pr` shelled out to `which` to find out whether `gh` exists.**
+  On a machine without `which` — minimal containers have none — that failed
+  with the same errno 2 it was trying to report. `shutil.which` needs no
+  subprocess at all.
+
 - **Python adapter, two address bugs.** A decorator written `@ deco` (legal
   Python) left the `@` outside the symbol, handing the worker a block that
   began with a stray space. And a method of a nested class was addressed as
@@ -79,10 +93,18 @@ minutes.
   not.
 - `tests/support.py` grows `StubWorkerServer`, which records the payloads it
   is sent, making the worker contract testable in both directions.
+- `tests/test_vcs.py` — the layer that decides what goes into a commit, and
+  the first code in the project that leaves the machine. Real repositories
+  throughout, including a real bare remote for `push`, because a mocked push
+  proves only that the mock ran.
+- `tests/test_docgen.py` — the log's filters and the three documents it
+  produces. The whole argument for recording a rationale per patch rests on
+  it coming back out intact.
 
-Coverage: 57% → 66% measured in-process, and higher in truth — the
+Coverage: 57% → 74% measured in-process, and higher in truth — the
 end-to-end tests run the server in a child process, where the collector does
-not follow.
+not follow. `server.py` 0% → 80%, `languages/python.py` 20% → 93%,
+`vcs.py` 28% → 84%, `docgen.py` 20% → 81%. 215 tests.
 
 ---
 

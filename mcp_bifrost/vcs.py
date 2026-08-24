@@ -17,6 +17,7 @@ deliberately, because these are the operations that leave the machine.
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -44,12 +45,22 @@ def _run_git(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
         ) from e
 
 
-def _git(repo: Path, *args: str, check: bool = True) -> str:
+def _git(repo: Path, *args: str, check: bool = True,
+         raw: bool = False) -> str:
+    """
+    `raw` keeps the output exactly as git wrote it.
+
+    Stripping is the right default for the one-line answers this is mostly
+    used for, and wrong for `status --porcelain`, whose first two columns are
+    the status code and may legitimately begin with a space. Stripping ate
+    that space, and the fixed-width slice that follows then removed the first
+    character of the filename.
+    """
     proc = _run_git(["git", "-C", str(repo), *args],
                     capture_output=True, text=True)
     if check and proc.returncode != 0:
         raise VcsError(f"git {' '.join(args)}: {proc.stderr.strip()}")
-    return proc.stdout.strip()
+    return proc.stdout if raw else proc.stdout.strip()
 
 
 @dataclass(frozen=True)
@@ -65,7 +76,7 @@ def state(path: Path) -> RepoState:
                      "rev-parse", "--show-toplevel"))
     branch = _git(root, "rev-parse", "--abbrev-ref", "HEAD")
     head = _git(root, "rev-parse", "HEAD", check=False)
-    porcelain = _git(root, "status", "--porcelain", check=False)
+    porcelain = _git(root, "status", "--porcelain", check=False, raw=True)
     dirty = [l[3:] for l in porcelain.splitlines() if l.strip()]
     return RepoState(root=root, branch=branch, head=head, dirty=dirty)
 
@@ -133,7 +144,11 @@ def open_pr(repo: Path, title: str, body: str = "",
     branch is already pushed, open the PR by hand — is perfectly workable.
     """
     st = state(repo)
-    if subprocess.run(["which", "gh"], capture_output=True).returncode != 0:
+    # `shutil.which`, not a third binary: shelling out to `which` to find
+    # out whether a binary exists fails with errno 2 on any machine that
+    # does not have `which` either, which is the same class of bug this is
+    # trying to report.
+    if shutil.which("gh") is None:
         raise VcsError(
             "the `gh` CLI is not installed. The branch is pushed; open the "
             "pull request in the browser instead.")
