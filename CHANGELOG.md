@@ -47,6 +47,16 @@ minutes.
   the symbols below it and registers as a loss, and two siblings where one
   was asked for are two roots.
 
+- **Every Python insertion violated PEP 8.** New symbols were spliced in
+  with a single newline on each side, the same for every language and every
+  nesting level, so a new top-level class arrived welded to the line above
+  it. Each adapter now states its own gap — two blank lines between
+  top-level definitions and one between methods for Python, one at every
+  level for PHP — and the gap is measured against what is already at the
+  seam, since `end_of_file` sits just past a newline while `after` sits at
+  the end of a line's text. Adding a fixed count to both gave one of them a
+  blank line too many.
+
 - **Python adapter, two address bugs.** A decorator written `@ deco` (legal
   Python) left the `@` outside the symbol, handing the worker a block that
   began with a stray space. And a method of a nested class was addressed as

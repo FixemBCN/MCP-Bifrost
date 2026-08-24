@@ -162,6 +162,17 @@ class PythonAdapter:
             # Null bytes, and other things ast refuses before parsing.
             return False, f"ValueError: {e}"
 
+    def blank_lines(self, indent: str) -> int:
+        """
+        Blank lines between a new symbol and its neighbour.
+
+        PEP 8, and in Python it is not decoration: two lines between
+        top-level definitions, one between methods. Insertions used a single
+        newline for everything, which glued every new class to the line above
+        it — valid, and flagged by every linter that will ever read the file.
+        """
+        return 1 if indent else 2
+
     def count_symbols(self, block: bytes) -> int:
         """
         How many symbols a standalone block defines.

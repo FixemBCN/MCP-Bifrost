@@ -216,7 +216,7 @@ class Engine:
         }
         return self._generate(path, adapter, payload, at, anc, anchor_src,
                               before_syms, instruction, context or [],
-                              allow_secrets)
+                              allow_secrets, position)
 
     def insert_case(self, file_path: str, after_case: str,
                     instruction: str, context: list[str] | None = None,
@@ -400,7 +400,8 @@ class Engine:
                        diff_stat=outcome.diff_stat)
 
     def _generate(self, path, adapter, payload, at, anc, anchor_src,
-                  before_syms, instruction, context, allow_secrets) -> Outcome:
+                  before_syms, instruction, context, allow_secrets,
+                  position: str = "after") -> Outcome:
         findings = heimdall.scan_payload(
             "\n".join(payload["ctx"]), None, entropy=self.entropy_scan)
         if findings and not allow_secrets:
@@ -425,8 +426,23 @@ class Engine:
             return Outcome(False, result.error or "worker failed", gate="worker")
 
         block = apply_indent(result.out.encode("utf-8"), anc.indent)
-        # Sit the new symbol on its own lines, indented like its neighbour.
-        block = b"\n" + anc.indent.encode() + block.lstrip() + b"\n"
+        # Sit the new symbol on its own lines, indented like its neighbour,
+        # with the gap its language expects. A single newline on each side
+        # was the same for every language and every nesting level, so a new
+        # top-level class arrived welded to the line above it.
+        # The gap has to be measured against what is already at the seam:
+        # `end_of_file` sits just past a newline, `after` sits at the end of
+        # a line's text, and adding a fixed number of newlines to both gives
+        # one of them a blank line too many.
+        current = path.read_bytes()
+        at_line_start = at == 0 or current[at - 1:at] == b"\n"
+        n = adapter.blank_lines(anc.indent)
+        body = anc.indent.encode() + block.lstrip()
+        if position == "before":
+            block = body + b"\n" * (n + 1)
+        else:
+            block = (b"\n" * (n if at_line_start else n + 1) + body
+                     + (b"\n" if at_line_start else b""))
         common["out_b"] = len(block)
         common["rationale"] = result.why
 

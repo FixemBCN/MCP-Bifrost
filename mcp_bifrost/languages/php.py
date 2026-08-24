@@ -195,6 +195,11 @@ class PhpAdapter:
         finally:
             os.unlink(tmp)
 
+    def blank_lines(self, indent: str) -> int:
+        """One, at every level: PSR-12 asks for the same gap between methods
+        and between top-level declarations."""
+        return 1
+
     def count_symbols(self, block: bytes) -> int:
         """
         How many symbols a standalone block defines.

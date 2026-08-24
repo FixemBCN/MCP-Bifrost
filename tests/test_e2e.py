@@ -352,3 +352,68 @@ class EndToEndTest(unittest.TestCase):
 
         self.assertFalse(is_error, text)
         self.assertEqual(before, self.target.read_bytes())
+
+
+@requires_git
+class InsertionSpacingTest(unittest.TestCase):
+    """
+    What an insertion looks like on disk, not just whether it parses.
+
+    Every insertion used one newline on each side regardless of language or
+    nesting, so a new top-level class arrived welded to the line above it:
+    valid Python, and flagged by every linter that will ever read the file.
+    The gap is now the language's own — PEP 8's two lines between top-level
+    definitions, one between methods — and it is measured against what is
+    already at the seam, because `end_of_file` sits just past a newline
+    while `after` sits at the end of a line's text.
+    """
+
+    MODULE = ('"""Module."""\n\n\nclass K:\n    def a(self):\n        return 1\n'
+              "\n    def b(self):\n        return 2\n\n\ndef top():\n    return 3\n")
+
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        git(self.repo, "init", "-q")
+        git(self.repo, "config", "user.email", "test@example.invalid")
+        git(self.repo, "config", "user.name", "Test")
+        self.target = self.repo / "m.py"
+        self.target.write_text(self.MODULE, encoding="utf-8")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "initial")
+        self.db = self.repo / "history.db"
+
+    def _insert(self, anchor: str, position: str, block: str) -> str:
+        with StubWorkerServer([{"out": block, "why": "added",
+                                "diff_stat": "+1/-0"}]) as stub:
+            with Client(self.repo, stub.base_url, self.db) as client:
+                is_error, text = client.tool(
+                    "insert_symbol", file_path=str(self.target),
+                    anchor=anchor, position=position,
+                    instruction="add the symbol")
+        self.assertFalse(is_error, text)
+        return self.target.read_text(encoding="utf-8")
+
+    def test_a_new_method_is_separated_by_one_blank_line(self):
+        source = self._insert("K.a", "after",
+                              "def mid(self):\n    return 9")
+        self.assertIn("        return 1\n\n    def mid(self):\n", source)
+        self.assertIn("        return 9\n\n    def b(self):\n", source)
+
+    def test_a_new_top_level_class_is_separated_by_two(self):
+        source = self._insert("top", "after",
+                              "class New:\n    def m(self):\n        return 6")
+        self.assertIn("    return 3\n\n\nclass New:\n", source)
+        self.assertNotIn("    return 3\nclass New:", source)
+
+    def test_an_insertion_before_the_anchor_keeps_the_gap_on_the_right_side(self):
+        source = self._insert("K.b", "before",
+                              "def pre(self):\n    return 8")
+        self.assertIn("        return 1\n\n    def pre(self):\n", source)
+        self.assertIn("        return 8\n\n    def b(self):\n", source)
+
+    def test_end_of_file_does_not_stack_blank_lines(self):
+        source = self._insert("top", "end_of_file",
+                              "def tail():\n    return 7")
+        self.assertIn("    return 3\n\n\ndef tail():\n", source)
+        self.assertTrue(source.endswith("    return 7\n"), repr(source[-30:]))
+        self.assertNotIn("\n\n\n\n", source)
