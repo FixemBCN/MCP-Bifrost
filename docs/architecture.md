@@ -496,6 +496,54 @@ saving          = would_have_cost - did_cost
 **An upper bound, and labelled as one:** if the orchestrator had already
 read the block to formulate the instruction, `src_b` was paid regardless.
 
+**And a counterfactual, not a measurement.** The formula assumes the thing
+the whole design is for: that `out_b` was produced by the worker and never
+entered the orchestrator's context. When that does not hold — when the
+orchestrator supplies the block itself and Bifrost is used only to validate
+and apply it — `out_b` was paid in full, the realised saving is zero, and
+the formula still returns a large number. It is answering "what would this
+have saved with a worker" and not "what did this save", and those separate
+whenever the muscle and the head are the same model.
+
+Worth stating plainly because the log cannot tell the two apart: it records
+the bytes that crossed the boundary, not where they were composed.
+
+#### A worked example, unflattering on purpose
+
+The test suites added in 0.1.3 and 0.1.4 were written through Bifrost
+itself, over its own MCP protocol, against a stub worker endpoint. The log
+for that session:
+
+| | |
+|---|---|
+| Operations | 15 — 13 applied, 2 refused by the symbol-set gate |
+| Written to disk | 97,909 bytes (~24,500 tokens) |
+| Instructions sent | 1,608 bytes (~400 tokens) |
+| Ratio the formula reports | **61×** |
+
+The realised saving was **zero**, and net negative once the driver and the
+stub are counted. The blocks were composed by the orchestrator, so every one
+of those 24,500 tokens was paid before Bifrost saw them.
+
+Nor could a worker have produced them from those instructions.
+*"Tests for the Python adapter: byte offsets under multibyte prefixes,
+decorators, qualified names"* is 145 bytes, and 10,398 bytes landed. The
+instruction does not contain the result: what it omits is the judgement that
+`@ deco`, with the space PHP-style spacing allows, leaves the `@` outside
+the symbol. A worker given that instruction writes plausible tests. It does
+not write that one.
+
+This is [RF-4](critical-review.md) measured rather than argued: the win is
+in volume, on transformations statable without reading anything. Bespoke
+work, composed once and applied once, is the case where the ratio is real
+and the saving is not.
+
+What that session did return was different in kind and worth recording too:
+three of its defects — a gate refusing a legitimate class insertion, every
+Python insertion arriving welded to the line above it, and a one-line
+container being filled wrongly — were found by *using* the tool, not by
+reading it. That is not a context saving and the log has no column for it.
+
 ---
 
 ## 12. Parsers

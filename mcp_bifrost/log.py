@@ -46,6 +46,11 @@ class PatchLog:
               head_sha     TEXT,
               instruccio   TEXT,
               rationale    TEXT,
+              -- Efficacy measurements. Bytes only: the saving is derived
+              -- at read time, and is a counterfactual — "what a worker
+              -- would have saved" — not a record of what was saved. They
+              -- differ whenever the orchestrator composed the block
+              -- itself. See docs/architecture.md, §11.
               src_b        INTEGER,
               out_b        INTEGER,
               in_b         INTEGER,

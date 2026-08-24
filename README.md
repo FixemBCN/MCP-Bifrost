@@ -56,6 +56,16 @@ be written without reading anything.
 
 That is the use case this is built for. Not "fix this bug."
 
+**And the number the log reports is a counterfactual.** The test suites in
+this repository were written through Bifrost itself: 97,909 bytes applied
+from 1,608 bytes of instruction, which the formula scores at 61×. The
+realised saving was zero, because the blocks were composed by the
+orchestrator rather than by a worker, and every one of those bytes was paid
+before Bifrost saw them. The log records what crossed the boundary, not
+where it was written. [The worked
+example](https://github.com/FixemBCN/MCP-Bifrost/blob/main/docs/architecture.md)
+is in §11, kept unflattering on purpose.
+
 ---
 
 ## When *not* to use it
