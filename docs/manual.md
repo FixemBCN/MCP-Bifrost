@@ -142,7 +142,7 @@ Or from source:
 ```bash
 git clone https://github.com/FixemBCN/MCP-Bifrost.git
 cd MCP-Bifrost
-python3 -m unittest discover tests    # 215 tests, ~24s
+python3 -m unittest discover tests    # 241 tests, ~27s
 ```
 
 Without `php` installed this ends in `OK (skipped=53)`: those tests shell out

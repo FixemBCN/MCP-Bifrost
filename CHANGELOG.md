@@ -71,6 +71,18 @@ minutes.
   with the same errno 2 it was trying to report. `shutil.which` needs no
   subprocess at all.
 
+- **`strip_fences` removed one fence and not the other.** A fence tagged
+  with anything but php/python/py kept its opening line and lost its
+  closing one, which is a worse block than the one that arrived.
+
+- **A trailing slash on the worker endpoint produced `//chat/completions`.**
+  `http://localhost:11434/v1/` is how the documentation for most local
+  servers writes it, urllib sends the doubled path verbatim, and a good many
+  gateways answer 404. The base URL is normalised now.
+
+- **`HTTPError` was read but never closed**, leaking a socket once per
+  failed worker call.
+
 - **Python adapter, two address bugs.** A decorator written `@ deco` (legal
   Python) left the `@` outside the symbol, handing the worker a block that
   began with a stray space. And a method of a nested class was addressed as
@@ -100,11 +112,17 @@ minutes.
 - `tests/test_docgen.py` — the log's filters and the three documents it
   produces. The whole argument for recording a rationale per patch rests on
   it coming back out intact.
+- `tests/test_worker.py` — fence stripping, key discovery, endpoint
+  configuration and every HTTP failure path, against a real socket rather
+  than a mocked `urlopen`: the failures worth catching here are HTTP
+  failures, and a mock cannot have them.
 
 Coverage: 57% → 74% measured in-process, and higher in truth — the
 end-to-end tests run the server in a child process, where the collector does
 not follow. `server.py` 0% → 80%, `languages/python.py` 20% → 93%,
-`vcs.py` 28% → 84%, `docgen.py` 20% → 81%. 215 tests.
+`vcs.py` 28% → 84%, `docgen.py` 20% → 81%, `worker.py` 28% → 99%.
+241 tests. What remains under-covered is `engine.py` at 57%: `fix_range`
+and the revert paths have no test of their own.
 
 ---
 

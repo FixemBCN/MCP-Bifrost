@@ -271,7 +271,7 @@ Or from source, without installing:
 ```bash
 git clone https://github.com/FixemBCN/MCP-Bifrost.git
 cd MCP-Bifrost
-python3 -m unittest discover tests    # 215 tests, ~24s
+python3 -m unittest discover tests    # 241 tests, ~27s
 python3 -m mcp_bifrost.server         # same server, PYTHONPATH=.
 ```
 
@@ -344,7 +344,7 @@ would have corrupted files silently in production. Full write-up:
 | `mcp_bifrost/` | the server |
 | [`CHANGELOG.md`](https://github.com/FixemBCN/MCP-Bifrost/blob/main/CHANGELOG.md) | what changed in each version, and why it was wrong before |
 | [`docs/`](https://github.com/FixemBCN/MCP-Bifrost/blob/main/docs/) | manual, architecture, critical review, calibration, comparison, licensing |
-| `tests/` | 215 tests — 53 need `php`, 63 need `git`, skipped when absent |
+| `tests/` | 241 tests — 53 need `php`, 63 need `git`, skipped when absent |
 | [`brainstorm/`](https://github.com/FixemBCN/MCP-Bifrost/blob/main/brainstorm/) | the working record — how each decision was reached, including the reversed ones |
 | `calibratge/` | the measurement harness |
 

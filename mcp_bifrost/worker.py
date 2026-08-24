@@ -54,10 +54,14 @@ def strip_fences(text: str) -> str:
     t = text.strip()
     if t.startswith("```"):
         lines = t.splitlines()
+        # The closing fence goes only if the opening one did. Removing one
+        # and not the other left an unrecognised tag — ```ruby, say — with
+        # its opening fence still in the code and its closing fence gone,
+        # which is a worse block than the one that arrived.
         if lines[0].lstrip("`").strip() in ("", "php", "python", "py"):
             lines = lines[1:]
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
         return "\n".join(lines)
     return text
 
@@ -167,8 +171,12 @@ class DeepSeekWorker:
         Raises:
             RuntimeError: If a remote endpoint is configured with no key.
         """
-        base_url = base_url or os.environ.get(
-            "BIFROST_WORKER_BASE_URL") or API_URL_BASE
+        # A trailing slash is how half the local-endpoint documentation
+        # writes it (`http://localhost:11434/v1/`), and concatenating gives
+        # `//chat/completions`, which urllib sends verbatim and a good many
+        # gateways answer with a 404.
+        base_url = (base_url or os.environ.get("BIFROST_WORKER_BASE_URL")
+                    or API_URL_BASE).rstrip("/")
         model = model or os.environ.get(
             "BIFROST_WORKER_MODEL") or MODEL_DEFAULT
         if api_key is None:
@@ -235,7 +243,10 @@ class DeepSeekWorker:
                 response_bytes = len(response_data)
                 data = json.loads(response_data.decode("utf-8"))
         except urllib.error.HTTPError as e:
-            error_body = e.read().decode("utf-8")[:400]
+            # HTTPError is itself a response object: reading it without
+            # closing it leaks the socket, once per failed call.
+            with e:
+                error_body = e.read().decode("utf-8")[:400]
             ms = int((time.time() - t0) * 1000)
             return WorkerResult(
                 ok=False,
