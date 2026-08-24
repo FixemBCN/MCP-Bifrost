@@ -139,6 +139,8 @@ TOOLS = [
         "name": "insert_symbol",
         "description": (
             "Add a new function, method or class next to an existing one. "
+            "Classes are addressable, so a class is a valid anchor and a "
+            "valid thing to insert. "
             "Anchoring to a symbol rather than a line number is what makes "
             "this usable in a batch: the anchor does not move when everything "
             "above it changes. The anchor is also shown to the worker as a "
@@ -154,7 +156,13 @@ TOOLS = [
                                           "ambiguous."},
                 "position": {"type": "string",
                              "enum": ["before", "after", "end_of_class",
-                                      "end_of_file"]},
+                                      "end_of_file"],
+                             "description": "Anchored to a class, "
+                                            "'end_of_class' appends a member "
+                                            "to that class — the direct way "
+                                            "to add a method to it. Anchored "
+                                            "to a member, it appends to the "
+                                            "class the member belongs to."},
                 "instruction": {"type": "string",
                                 "description": "What the new symbol should "
                                                "be. Say 'output only the "
@@ -366,7 +374,7 @@ class Server:
             return self._ok(rid, {
                 "protocolVersion": agreed,
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "mcp-bifrost", "version": "0.1.3"},
+                "serverInfo": {"name": "mcp-bifrost", "version": "0.1.4"},
             })
 
         if method == "tools/list":

@@ -40,6 +40,17 @@ class Symbol:
     indent: str
     abstract: bool = False
     doc_start_byte: int | None = None
+    # What was declared: "function" for a function or method, and the
+    # declaration keyword for anything that contains other symbols —
+    # "class", "interface", "trait", "enum". The engine needs the
+    # distinction: `end_of_class` means the end of a container, and only a
+    # container has one.
+    kind: str = "function"
+
+    @property
+    def is_container(self) -> bool:
+        """Does this symbol hold other symbols?"""
+        return self.kind != "function"
 
     def extract(self, source: bytes) -> bytes:
         """The symbol's own bytes, sliced out of the whole file."""
@@ -89,8 +100,29 @@ class LanguageAdapter(Protocol):
     name: str
     extensions: tuple[str, ...]
 
+    # One level of indentation in this language. Consulted only when a
+    # container has no member whose indentation could be copied instead.
+    indent_unit: str
+
     def symbols(self, path: Path) -> list[Symbol]:
         """Every addressable symbol in the file. Raises ExtractionError."""
+        ...
+
+    def count_symbols(self, block: bytes) -> int:
+        """
+        How many symbols a standalone block declares at its own level.
+
+        A container counts as one, whatever it holds: a nested helper
+        belongs to its parent. Gate 2 depends on this reading.
+        """
+        ...
+
+    def blank_lines(self, indent: str) -> int:
+        """
+        Blank lines between a new symbol and its neighbour, given where it
+        will sit. PEP 8 wants two at the top level and one between methods;
+        PSR-12 wants one everywhere.
+        """
         ...
 
     def validate(self, source: bytes) -> tuple[bool, str]:

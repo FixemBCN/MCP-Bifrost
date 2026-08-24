@@ -142,12 +142,12 @@ Or from source:
 ```bash
 git clone https://github.com/FixemBCN/MCP-Bifrost.git
 cd MCP-Bifrost
-python3 -m unittest discover tests    # 241 tests, ~27s
+python3 -m unittest discover tests    # 269 tests, ~31s
 ```
 
-Without `php` installed this ends in `OK (skipped=53)`: those tests shell out
+Without `php` installed this ends in `OK (skipped=80)`: those tests shell out
 to the real tokenizer and have nothing to check without it. Without `git`,
-another 63 skip. Neither is a failure, and neither is a silent pass — the
+another 70 skip. Neither is a failure, and neither is a silent pass — the
 skip count is the honest report of what your machine could verify.
 
 ### Connect it to Claude Code

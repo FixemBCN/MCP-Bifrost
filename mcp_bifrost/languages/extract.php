@@ -80,35 +80,177 @@ $opensBrace = function (array $t) use ($openCurly): bool {
         || in_array($t['id'], $openCurly, true);
 };
 
+/**
+ * The body of a declaration that starts at token $from: the first '{' at
+ * parenthesis depth zero, matched to the '}' that closes it.
+ *
+ * Returns [byte offset just past the closing brace, bodyless], where
+ * bodyless is true for a declaration ended by ';' instead — an interface or
+ * abstract method. Containers and functions share this so that a class and
+ * its methods can never disagree about where a block ends.
+ */
+$blockEnd = function (int $from) use (&$norm, $n, $opensBrace): array {
+    $parens = 0;
+    for ($m = $from; $m < $n; $m++) {
+        $t = $norm[$m];
+        if ($t['id'] !== -1) { continue; }   // named tokens open no plain brace
+        if ($t['text'] === '(') { $parens++; }
+        elseif ($t['text'] === ')') { $parens--; }
+        elseif ($t['text'] === ';' && $parens === 0) {
+            return [$t['off'] + 1, true];
+        } elseif ($t['text'] === '{' && $parens === 0) {
+            // Interpolation braces count too — see $opensBrace above.
+            $d = 0;
+            for ($q = $m; $q < $n; $q++) {
+                if ($opensBrace($norm[$q])) { $d++; continue; }
+                if ($norm[$q]['id'] !== -1) { continue; }
+                if ($norm[$q]['text'] === '}') {
+                    $d--;
+                    if ($d === 0) { return [$norm[$q]['off'] + 1, false]; }
+                }
+            }
+            return [null, false];
+        }
+    }
+    return [null, false];
+};
+
+/** The declaration keyword, as the symbol's kind. */
+$containerKind = function (int $id): string {
+    if ($id === T_INTERFACE) { return 'interface'; }
+    if ($id === T_TRAIT) { return 'trait'; }
+    if (defined('T_ENUM') && $id === T_ENUM) { return 'enum'; }
+    return 'class';
+};
+
+/**
+ * Modifiers, and everything attached above a declaration at token $i.
+ *
+ * `doc_start_byte` marks where the declaration's preamble begins: its
+ * docblock, its PHP 8 attributes, or both. The engine inserts *above* that
+ * point, never between it and what it describes — splicing in between
+ * detaches the two and passes every gate, since the file still parses and
+ * the symbol set is unchanged. Only a human reading the diff would notice
+ * that `#[Route('/users')]` now decorates a different method.
+ *
+ * The preamble stays outside `start_byte`, exactly as a docblock does: the
+ * worker never sees it, never has to reproduce it, and cannot lose it.
+ */
+$leadingContext = function (int $i) use (&$norm, $modifiers): array {
+    $start = $i;
+    $k = $i - 1;
+    while ($k >= 0) {
+        if ($norm[$k]['id'] === T_WHITESPACE) { $k--; continue; }
+        if (in_array($norm[$k]['id'], $modifiers, true)) { $start = $k; $k--; continue; }
+        break;
+    }
+
+    $docStart = null;
+    $k = $start - 1;
+    while ($k >= 0) {
+        if ($norm[$k]['id'] === T_WHITESPACE) { $k--; continue; }
+
+        if ($norm[$k]['id'] === T_DOC_COMMENT) {
+            $docStart = $norm[$k]['off'];
+            $k--;
+            continue;
+        }
+
+        // An attribute ends in `]`. Walk back to the `#[` that opened it,
+        // counting brackets, because an attribute's arguments may contain
+        // arrays of their own.
+        if ($norm[$k]['id'] === -1 && $norm[$k]['text'] === ']') {
+            $d = 0;
+            $q = $k;
+            for (; $q >= 0; $q--) {
+                if ($norm[$q]['id'] === -1 && $norm[$q]['text'] === ']') { $d++; continue; }
+                if ($norm[$q]['id'] === T_ATTRIBUTE) { $d--; if ($d === 0) { break; } continue; }
+                if ($norm[$q]['id'] === -1 && $norm[$q]['text'] === '[') { $d--; if ($d === 0) { break; } continue; }
+            }
+            // Balanced at a plain `[` instead: that was an expression, not an
+            // attribute, so real code sits above and nothing is attached.
+            if ($q < 0 || $norm[$q]['id'] !== T_ATTRIBUTE) { break; }
+            $docStart = $norm[$q]['off'];
+            $k = $q - 1;
+            continue;
+        }
+
+        break;
+    }
+
+    return [$start, $docStart];
+};
+
+/** Build one symbol record. Shared so containers and functions cannot drift. */
+$makeSymbol = function (string $name, ?string $class, string $kind,
+                        int $startOff, int $endOff, ?int $docStart,
+                        bool $abstract) use ($src): array {
+    $ls = strrpos(substr($src, 0, $startOff), "\n");
+    $ls = ($ls === false) ? 0 : $ls + 1;
+    $prefix = substr($src, $ls, $startOff - $ls);
+    return [
+        'name'           => $name,
+        'class'          => $class,
+        'kind'           => $kind,
+        'fqn'            => $class ? "$class::$name" : $name,
+        'abstract'       => $abstract,
+        'start_byte'     => $startOff,
+        'end_byte'       => $endOff,
+        'doc_start_byte' => $docStart,
+        'start_line'     => substr_count(substr($src, 0, $startOff), "\n") + 1,
+        'end_line'       => substr_count(substr($src, 0, $endOff), "\n") + 1,
+        'n_lines'        => substr_count(substr($src, $startOff, $endOff - $startOff), "\n") + 1,
+        'indent'         => (trim($prefix) === '') ? $prefix : null,
+    ];
+};
+
 $symbols = [];
-$classStack = []; // [name, brace depth at open]
-$depth = 0;
+$classStack = []; // [name (fully qualified), end (byte offset just past '}')]
 
 for ($i = 0; $i < $n; $i++) {
     $tok = $norm[$i];
 
-    if (in_array($tok['id'], $openCurly, true)) { $depth++; continue; }
-
-    if ($tok['id'] === -1) {
-        if ($tok['text'] === '{') { $depth++; }
-        elseif ($tok['text'] === '}') {
-            $depth--;
-            // We leave a class when we close the brace it opened at.
-            while (!empty($classStack) && end($classStack)['depth'] > $depth) {
-                array_pop($classStack);
-            }
-        }
-        continue;
+    // Leave every container this token is past. Tracking the extent rather
+    // than the brace depth is what makes this exact: the previous version
+    // popped on `depth > $depth`, which is never true for a class declared
+    // at depth 0, so the stack only ever grew. The newest class shadowed the
+    // rest, which looked right for classes in sequence and was wrong for
+    // everything after the last one — a top-level function following a class
+    // was reported as a method of it.
+    while (!empty($classStack) && $tok['off'] >= end($classStack)['end']) {
+        array_pop($classStack);
     }
+
+    if (in_array($tok['id'], $openCurly, true)) { continue; }
+    if ($tok['id'] === -1) { continue; }
 
     // --- Containers (class / interface / trait / enum) ---
     if (in_array($tok['id'], $containers, true)) {
-        // `Foo::class` and anonymous classes carry no usable name.
+        // `Foo::class` and anonymous classes carry no usable name, and
+        // nothing that has no name can be addressed.
         $j = $i + 1;
         while ($j < $n && in_array($norm[$j]['id'], $skippable, true)) { $j++; }
-        if ($j < $n && $norm[$j]['id'] === T_STRING) {
-            $classStack[] = ['name' => $norm[$j]['text'], 'depth' => $depth];
-        }
+        if ($j >= $n || $norm[$j]['id'] !== T_STRING) { continue; }
+        $name = $norm[$j]['text'];
+
+        [$endOff, $bodyless] = $blockEnd($j + 1);
+        if ($endOff === null || $bodyless) { continue; }
+
+        [$start, $docStart] = $leadingContext($i);
+        $outer = empty($classStack) ? null : end($classStack)['name'];
+
+        // A class is a symbol in its own right: one address for the whole
+        // declaration, which is what makes `insert_symbol` able to add a
+        // class and `fix_symbol` able to rewrite one. Its methods remain
+        // separately addressable underneath it.
+        $symbols[] = $makeSymbol($name, $outer, $containerKind($tok['id']),
+                                 $norm[$start]['off'], $endOff, $docStart,
+                                 false);
+
+        $classStack[] = [
+            'name' => $outer ? "$outer::$name" : $name,
+            'end'  => $endOff,
+        ];
         continue;
     }
 
@@ -128,76 +270,15 @@ for ($i = 0; $i < $n; $i++) {
     if ($j >= $n || $norm[$j]['id'] !== T_STRING) { continue; }
     $name = $norm[$j]['text'];
 
-    // Real start: walk back over the modifiers.
-    $start = $i;
-    $k = $i - 1;
-    while ($k >= 0) {
-        if (in_array($norm[$k]['id'], [T_WHITESPACE], true)) { $k--; continue; }
-        if (in_array($norm[$k]['id'], $modifiers, true)) { $start = $k; $k--; continue; }
-        break;
-    }
-
-    // Immediately preceding docblock (only if no code sits in between).
-    $docStart = null;
-    $k = $start - 1;
-    while ($k >= 0 && $norm[$k]['id'] === T_WHITESPACE) { $k--; }
-    if ($k >= 0 && $norm[$k]['id'] === T_DOC_COMMENT) { $docStart = $norm[$k]['off']; }
-
-    // Body: find the opening '{' at the same level, or ';' if abstract.
-    $bodyDepth = 0;
-    $endOff = null;
-    $isAbstract = false;
-    for ($m = $j + 1; $m < $n; $m++) {
-        $t2 = $norm[$m];
-        if ($t2['id'] !== -1) { continue; }  // named tokens open no plain brace
-        if ($t2['text'] === '(') { $bodyDepth++; }
-        elseif ($t2['text'] === ')') { $bodyDepth--; }
-        elseif ($t2['text'] === ';' && $bodyDepth === 0) {
-            // Declaration with no body (interface / abstract).
-            $isAbstract = true;
-            $endOff = $t2['off'] + 1;
-            break;
-        } elseif ($t2['text'] === '{' && $bodyDepth === 0) {
-            // Match braces until the block closes. Interpolation braces count
-            // too — see $opensBrace above.
-            $d = 0;
-            for ($q = $m; $q < $n; $q++) {
-                if ($opensBrace($norm[$q])) { $d++; continue; }
-                if ($norm[$q]['id'] !== -1) { continue; }
-                if ($norm[$q]['text'] === '}') {
-                    $d--;
-                    if ($d === 0) { $endOff = $norm[$q]['off'] + 1; break; }
-                }
-            }
-            break;
-        }
-    }
-
+    // Modifiers, docblock and body — the same three the containers use, so
+    // the two paths cannot drift apart.
+    [$start, $docStart] = $leadingContext($i);
+    [$endOff, $isAbstract] = $blockEnd($j + 1);
     if ($endOff === null) { continue; }
 
-    $startOff = $norm[$start]['off'];
     $class = empty($classStack) ? null : end($classStack)['name'];
-
-    $symbols[] = [
-        'name'           => $name,
-        'class'          => $class,
-        'fqn'            => $class ? "$class::$name" : $name,
-        'abstract'       => $isAbstract,
-        'start_byte'     => $startOff,
-        'end_byte'       => $endOff,
-        'doc_start_byte' => $docStart,
-        'start_line'     => substr_count(substr($src, 0, $startOff), "\n") + 1,
-        'end_line'       => substr_count(substr($src, 0, $endOff), "\n") + 1,
-        'n_lines'        => substr_count(substr($src, $startOff, $endOff - $startOff), "\n") + 1,
-        'indent'         => (function () use ($src, $startOff) {
-            // Text between start of line and the symbol. If it is nothing but
-            // whitespace, that whitespace is the symbol's indentation.
-            $ls = strrpos(substr($src, 0, $startOff), "\n");
-            $ls = ($ls === false) ? 0 : $ls + 1;
-            $prefix = substr($src, $ls, $startOff - $ls);
-            return (trim($prefix) === '') ? $prefix : null;
-        })(),
-    ];
+    $symbols[] = $makeSymbol($name, $class, 'function', $norm[$start]['off'],
+                             $endOff, $docStart, $isAbstract);
 }
 
 

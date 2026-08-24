@@ -32,6 +32,9 @@ class PythonAdapter:
     name = "python"
     extensions = (".py",)
 
+    # PEP 8. Only consulted when a container has no member to copy from.
+    indent_unit = "    "
+
     # ------------------------------------------------------------ extraction
 
     @staticmethod
@@ -124,6 +127,7 @@ class PythonAdapter:
             indent=indent,
             abstract=False,
             doc_start_byte=doc_start,
+            kind="class" if isinstance(node, ast.ClassDef) else "function",
         )
 
     def find(self, path: Path, name: str) -> Symbol:

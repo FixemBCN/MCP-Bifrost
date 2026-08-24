@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import time
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from . import gates, heimdall
@@ -68,6 +68,24 @@ class Outcome:
                 return f"OK {self.diff_stat}"
             return f"OK {self.message}".strip() if self.message else "OK"
         return f"ERROR [{self.gate or 'engine'}] {self.message}"
+
+
+def _inside_end_of(source: bytes, sym: Symbol) -> int:
+    """
+    The byte just after a container's last member, for a container that has
+    none: immediately before its closing delimiter.
+
+    PHP ends a class with `}`; Python ends it with a dedent and no character
+    at all. Stepping back over trailing whitespace and one closing brace, if
+    there is one, covers both without either adapter having to say so.
+    """
+    at = sym.end_byte
+    while at > sym.start_byte and source[at - 1:at] in (b"}", b"\n", b" ", b"\t"):
+        closing = source[at - 1:at] == b"}"
+        at -= 1
+        if closing:
+            break
+    return at
 
 
 class Engine:
@@ -183,8 +201,8 @@ class Engine:
             return Outcome(False, str(e), gate="resolve")
 
         source = path.read_bytes()
-        anchor_src = anc.extract(source)
         before_syms = [s.fqn for s in adapter.symbols(path)]
+        new_indent: str | None = None
 
         if position == "before":
             # Insert above the anchor's DOCBLOCK, not between the docblock and
@@ -198,10 +216,42 @@ class Engine:
         elif position == "after":
             at = anc.end_byte
         elif position == "end_of_class":
-            same = [s for s in adapter.symbols(path) if s.cls == anc.cls]
-            at = max(s.end_byte for s in same)
+            # Two readings, and which one applies depends on what was
+            # anchored. Against a member, "the end of the class" is the end
+            # of that member's own container. Against the container itself —
+            # the natural way to say "add a method to Foo", and only possible
+            # since classes became addressable — it is the end of the anchor.
+            container = anc.fqn if anc.is_container else anc.cls
+            new_indent = None
+            members = [s for s in adapter.symbols(path) if s.cls == container]
+            if members:
+                # Sit after the last member, which also supplies the
+                # indentation its siblings use.
+                last = max(members, key=lambda s: s.end_byte)
+                at, anc = last.end_byte, last
+                position = "after"
+                new_indent = None
+            elif anc.is_container:
+                # An empty container: just inside its closing brace, or at
+                # the end of the block for a language that has none. There is
+                # no sibling to copy an indent from, so the unit is a guess,
+                # and the only one available. The anchor itself is left
+                # alone — gate 0 checks its bytes, and the worker is shown it
+                # as a style reference.
+                at = _inside_end_of(source, anc)
+                new_indent = anc.indent + adapter.indent_unit
+            else:
+                at = anc.end_byte
+                position = "after"
         else:
             at = len(source)
+
+        # Only now: `end_of_class` re-anchors onto the container's last
+        # member, and gate 0 checks the anchor's bytes. Reading them before
+        # that compared one symbol's range against another's content and
+        # reported the file as having changed underneath us.
+        anchor_src = anc.extract(source)
+        indent = new_indent if new_indent is not None else anc.indent
 
         payload = {
             "lang": adapter.name,
@@ -211,12 +261,12 @@ class Engine:
                 "Neighbour for style reference, do not reproduce it:",
                 strip_indent(anchor_src, anc.indent).decode("utf-8"),
             ],
-            "indent": anc.indent,
+            "indent": indent,
             "src": "",
         }
         return self._generate(path, adapter, payload, at, anc, anchor_src,
                               before_syms, instruction, context or [],
-                              allow_secrets, position)
+                              allow_secrets, position, indent)
 
     def insert_case(self, file_path: str, after_case: str,
                     instruction: str, context: list[str] | None = None,
@@ -401,7 +451,8 @@ class Engine:
 
     def _generate(self, path, adapter, payload, at, anc, anchor_src,
                   before_syms, instruction, context, allow_secrets,
-                  position: str = "after") -> Outcome:
+                  position: str = "after",
+                  indent: str | None = None) -> Outcome:
         findings = heimdall.scan_payload(
             "\n".join(payload["ctx"]), None, entropy=self.entropy_scan)
         if findings and not allow_secrets:
@@ -425,24 +476,48 @@ class Engine:
                             **{**common, "rationale": result.error})
             return Outcome(False, result.error or "worker failed", gate="worker")
 
-        block = apply_indent(result.out.encode("utf-8"), anc.indent)
+        indent = anc.indent if indent is None else indent
+        block = apply_indent(result.out.encode("utf-8"), indent)
+
         # Sit the new symbol on its own lines, indented like its neighbour,
-        # with the gap its language expects. A single newline on each side
-        # was the same for every language and every nesting level, so a new
-        # top-level class arrived welded to the line above it.
-        # The gap has to be measured against what is already at the seam:
-        # `end_of_file` sits just past a newline, `after` sits at the end of
-        # a line's text, and adding a fixed number of newlines to both gives
-        # one of them a blank line too many.
+        # with the gap its language expects. One newline on each side was the
+        # same for every language and every nesting level, so a new top-level
+        # class arrived welded to the line above it.
+        #
+        # The gap is measured against what is already at the seam, not added
+        # blindly: `end_of_file` sits just past a newline, `after` sits at the
+        # end of a line's text, and a fixed count gives one of them a blank
+        # line too many.
         current = path.read_bytes()
         at_line_start = at == 0 or current[at - 1:at] == b"\n"
-        n = adapter.blank_lines(anc.indent)
-        body = anc.indent.encode() + block.lstrip()
+        n = adapter.blank_lines(indent)
+
+        # A bounded look back: whitespace runs before an insertion point are
+        # a line break and an indent, never hundreds of bytes.
+        head = current[max(0, at - 256):at].rstrip()
+        if head.endswith(b"{") or head.endswith(b":"):
+            # Nothing goes a blank line below an opening delimiter: filling an
+            # empty class puts the first member against the top of the body,
+            # which is what both PSR-12 and PEP 8 ask for.
+            n = 0
+
+        body = indent.encode() + block.lstrip()
         if position == "before":
             block = body + b"\n" * (n + 1)
         else:
             block = (b"\n" * (n if at_line_start else n + 1) + body
                      + (b"\n" if at_line_start else b""))
+            # `class Foo {}` — the whole container on one line. Without this
+            # the closing brace ends up welded to the last line of the body.
+            # Only when it shares the line: a brace already on its own line
+            # has its newline from `at_line_start` above, and adding another
+            # opens a blank line at the foot of the body.
+            if not at_line_start and current[at:at + 1] == b"}":
+                line_start = current.rfind(b"\n", 0, at) + 1
+                closing_indent = current[line_start:at]
+                if closing_indent.strip():
+                    closing_indent = b""
+                block += b"\n" + closing_indent
         common["out_b"] = len(block)
         common["rationale"] = result.why
 

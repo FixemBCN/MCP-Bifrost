@@ -297,11 +297,13 @@ class InsertSymbolOrderTest(EngineTestBase):
         )
         self.assertTrue(outcome.ok, outcome.message)
 
+        # The class itself heads the map: it is a symbol in its own right,
+        # and it opens before any of its methods.
         order = [s.fqn for s in self.php.symbols(path)]
         self.assertEqual(
             order,
-            ["Widget::methodOne", "Widget::methodTwo", "Widget::newAfter",
-             "Widget::methodThree"],
+            ["Widget", "Widget::methodOne", "Widget::methodTwo",
+             "Widget::newAfter", "Widget::methodThree"],
         )
         engine.close()
 
@@ -320,8 +322,8 @@ class InsertSymbolOrderTest(EngineTestBase):
         order = [s.fqn for s in self.php.symbols(path)]
         self.assertEqual(
             order,
-            ["Widget::methodOne", "Widget::newBefore", "Widget::methodTwo",
-             "Widget::methodThree"],
+            ["Widget", "Widget::methodOne", "Widget::newBefore",
+             "Widget::methodTwo", "Widget::methodThree"],
         )
         engine.close()
 
@@ -606,7 +608,7 @@ class PatchGroupAllSucceedTest(EngineTestBase):
         self.assertTrue(outcome.ok, outcome.message)
 
         order = [s.fqn for s in self.php.symbols(path_a)]
-        self.assertEqual(order, ["Alpha::foo", "Alpha::newSibling"])
+        self.assertEqual(order, ["Alpha", "Alpha::foo", "Alpha::newSibling"])
         self.assertTrue(path_c.is_file())
         self.assertIn(b"class Created", path_c.read_bytes())
         engine.close()

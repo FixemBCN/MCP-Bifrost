@@ -22,6 +22,10 @@ from . import Case, ExtractionError, Symbol
 
 EXTRACTOR = Path(__file__).parent / "extract.php"
 
+# The wrapper `count_symbols` puts a bare block inside so that PHP will
+# parse it. Its name is deliberately unlikely to collide with real code.
+PROBE_CLASS = "__BifrostProbe"
+
 
 class PhpBinaryMissing(ExtractionError):
     """`php` is not on PATH. Not a parse failure — nothing was parsed."""
@@ -51,6 +55,9 @@ def _run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
 class PhpAdapter:
     name = "php"
     extensions = (".php",)
+
+    # PSR-12. Only consulted when a container has no member to copy from.
+    indent_unit = "    "
 
     def __init__(self, php_binary: str = "php") -> None:
         self.php = php_binary
@@ -92,6 +99,7 @@ class PhpAdapter:
                 indent=s["indent"] or "",
                 abstract=s["abstract"],
                 doc_start_byte=s["doc_start_byte"],
+                kind=s.get("kind", "function"),
             )
             for s in data["symbols"]
         ]
@@ -202,21 +210,33 @@ class PhpAdapter:
 
     def count_symbols(self, block: bytes) -> int:
         """
-        How many symbols a standalone block defines.
+        How many symbols a standalone block declares AT ITS OWN LEVEL.
 
         Gate 2 uses this to catch a worker that returned a sibling function
-        alongside the one it was asked for. The block is wrapped in `<?php`
-        because on its own it is not a parsable file.
+        alongside the one it was asked for. The block is wrapped in a probe
+        class because on its own it is not a parsable file, and the count is
+        then the number of symbols the probe directly contains — not the
+        number of names in the map.
+
+        The distinction became load-bearing when classes became addressable:
+        a class arrives with its methods, so `class Foo` with eight of them
+        is nine names and one symbol. Counting names would make gate 2 refuse
+        every whole-class rewrite, which is a thing the tools now offer. This
+        matches the Python adapter, where a nested helper has always belonged
+        to its parent.
         """
         fd, tmp = tempfile.mkstemp(suffix=".php")
         try:
             with os.fdopen(fd, "wb") as fh:
-                fh.write(b"<?php\nclass __BifrostProbe {\n" + block + b"\n}\n")
+                fh.write(b"<?php\nclass " + PROBE_CLASS.encode() + b" {\n"
+                         + block + b"\n}\n")
             proc = _run(
                 [self.php, str(EXTRACTOR), tmp], capture_output=True, text=True
             )
+            owner: str | None = PROBE_CLASS
             if proc.returncode != 0:
-                # Not inside a class, perhaps. Try the block bare.
+                # Not placeable inside a class, perhaps. Try the block bare,
+                # where its own declarations sit at the top level.
                 with open(tmp, "wb") as fh:
                     fh.write(b"<?php\n" + block + b"\n")
                 proc = _run(
@@ -227,6 +247,8 @@ class PhpAdapter:
                     raise ExtractionError(
                         f"block is not parsable on its own: {proc.stderr.strip()}"
                     )
-            return json.loads(proc.stdout)["n_symbols"]
+                owner = None
+            data = json.loads(proc.stdout)
+            return sum(1 for sym in data["symbols"] if sym["class"] == owner)
         finally:
             os.unlink(tmp)

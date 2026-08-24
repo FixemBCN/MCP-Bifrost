@@ -149,6 +149,13 @@ new block exists in the symbol map `extract.php` already produces.
 The returned block must define exactly one symbol, so the worker cannot
 quietly add a sibling function. Two lines using `extract.php`.
 
+**One symbol, not one name.** A class arrives with its methods: `class Foo`
+with eight of them contributes nine names to the symbol map and is still one
+declaration. The count is therefore of what the block declares at its own
+level — a nested helper belongs to its parent — which is what lets a whole
+class be rewritten or inserted while still refusing two siblings where one
+was asked for. The insertion gate (§6) counts the same way, by roots.
+
 ### Gate 3 — substance (before bulk use, not day one)
 
 Compare the set of calls, variables and control keywords in the block before
@@ -203,7 +210,7 @@ times, at a known structural anchor**.
 
 | Tool | What |
 |---|---|
-| `insert_symbol(file, anchor, position, instruction)` | insert a method before/after a named symbol, or at end of class/file |
+| `insert_symbol(file, anchor, position, instruction)` | insert a function, method or class before/after a named symbol, or at end of class/file. Anchored to a class, `end_of_class` appends a member to it |
 | `insert_case(file, after_case, instruction)` | a new branch in a `switch` router — not a PHP symbol, so it needs its own addressing |
 | `create_file(path, model_from, instruction)` | **generation by analogy** |
 
@@ -501,10 +508,32 @@ read the block to formulate the instruction, `src_b` was paid regardless.
 | Fidelity | third-party grammar | **the official lexer** |
 | Tested on the target | — | **128/128 files, zero failures** |
 
-`calibratge/extract.php` implements it: name, class, FQN, byte offsets,
-lines, indentation, and the start of any preceding docblock. It includes a
-sanity check that concatenating the tokens reconstructs the file byte for
-byte — if that fails it aborts rather than returning doubtful offsets.
+`mcp_bifrost/languages/extract.php` implements it: name, class, FQN, kind,
+byte offsets, lines, indentation, and the start of the declaration's
+preamble. It includes a sanity check that concatenating the tokens
+reconstructs the file byte for byte — if that fails it aborts rather than
+returning doubtful offsets.
+
+**Containers are symbols.** `class`, `interface`, `trait` and `enum` are
+addressable in their own right, each carrying its whole declaration from the
+first modifier to the closing brace, with its methods still addressable
+underneath it as `Class::method`. This is what `insert_symbol` needs to be
+able to add a class at all, and what makes `end_of_class` mean something
+when the anchor *is* the class. The Python adapter has always emitted
+`ClassDef` the same way; PHP listed methods only, and the asymmetry was
+invisible until someone asked for a class and the insertion gate refused it
+for having brought its methods along.
+
+**The preamble is what sits above a declaration and belongs to it:** its
+docblock, its PHP 8 attributes, or both. It stays *outside* the symbol's own
+bytes — the worker never sees it, never has to reproduce it, and so cannot
+lose it — and insertions go above it rather than between it and what it
+describes. Splicing in between passes every gate: the file parses and the
+symbol set is unchanged, and only a human reading the diff would notice that
+`#[Route('/users')]` now decorates a different method. The Python adapter
+reaches the same guarantee from the other side, by taking decorators *into*
+the symbol, because `ast` hands over their positions and a decorator there
+reads as part of the definition.
 
 **Validation: native per language.** `php -l`, `ast.parse()`. Here fidelity
 matters more than uniformity: the official parser is the only authority on

@@ -271,17 +271,17 @@ Or from source, without installing:
 ```bash
 git clone https://github.com/FixemBCN/MCP-Bifrost.git
 cd MCP-Bifrost
-python3 -m unittest discover tests    # 241 tests, ~27s
+python3 -m unittest discover tests    # 269 tests, ~31s
 python3 -m mcp_bifrost.server         # same server, PYTHONPATH=.
 ```
 
-**Without `php` on your PATH you will see `OK (skipped=53)`,** and that is the
-expected result: those 53 tests drive the real PHP tokenizer, so on a machine
-with no PHP there is nothing for them to prove. The remaining 75 — gates,
+**Without `php` on your PATH you will see `OK (skipped=80)`,** and that is the
+expected result: those 80 tests drive the real PHP tokenizer, so on a machine
+with no PHP there is nothing for them to prove. The remaining 189 — gates,
 patcher, budget, Heimdall, the Python adapter — run on the standard library
 alone. Install `php-cli` if you want the PHP half proven on your own machine;
 [CI](https://github.com/FixemBCN/MCP-Bifrost/actions/workflows/tests.yml) runs
-both environments on every push. `git` guards 63 tests the same way.
+both environments on every push. `git` guards 70 tests the same way.
 
 **The key does not go in that file.** Put it in `.bifrost.env` at your project
 root, which the server reads when the environment does not carry it:
@@ -302,7 +302,7 @@ that matters, are in [the manual](https://github.com/FixemBCN/MCP-Bifrost/blob/m
 |---|---|
 | `fix_symbols` | one instruction across many symbols — **the main one** |
 | `fix_symbol` / `fix_range` | rewrite one symbol, or an explicit line range |
-| `insert_symbol` / `insert_case` | add a method, or a branch to a switch router |
+| `insert_symbol` / `insert_case` | add a function, method or class, or a branch to a switch router |
 | `create_file` | write a new file, optionally by analogy with an existing one |
 | `patch_group` | several operations as one transaction |
 | `export_docs` / `publish_session` | changelog from the log; batch onto a reviewable branch |
@@ -344,7 +344,7 @@ would have corrupted files silently in production. Full write-up:
 | `mcp_bifrost/` | the server |
 | [`CHANGELOG.md`](https://github.com/FixemBCN/MCP-Bifrost/blob/main/CHANGELOG.md) | what changed in each version, and why it was wrong before |
 | [`docs/`](https://github.com/FixemBCN/MCP-Bifrost/blob/main/docs/) | manual, architecture, critical review, calibration, comparison, licensing |
-| `tests/` | 241 tests — 53 need `php`, 63 need `git`, skipped when absent |
+| `tests/` | 269 tests — 80 need `php`, 70 need `git`, skipped when absent |
 | [`brainstorm/`](https://github.com/FixemBCN/MCP-Bifrost/blob/main/brainstorm/) | the working record — how each decision was reached, including the reversed ones |
 | `calibratge/` | the measurement harness |
 

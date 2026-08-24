@@ -8,6 +8,67 @@ the version was tagged.
 
 ---
 
+## 0.1.4 — 2026-08-24
+
+### Changed — a class is a symbol
+
+The PHP symbol map listed methods and nothing else. A class had no address,
+so `insert_symbol` could not add one: the `symbol_set` gate saw a class
+arrive with its methods, counted names rather than declarations, refused,
+and rolled the write back — which made the refusal look like a gate catching
+something real. The tool description had promised classes the whole time,
+and the Python adapter had emitted `ClassDef` from the start, so the two
+languages disagreed about what could be addressed.
+
+`extract.php` now emits `class`, `interface`, `trait` and `enum` as symbols
+in their own right, each spanning its whole declaration from the first
+modifier to the closing brace, with its methods still addressable underneath
+as `Class::method`. `Symbol` carries a `kind` to say which it is.
+
+What that makes possible:
+
+- `insert_symbol` can add a class, as documented.
+- `fix_symbol` can rewrite one, because gate 2 now counts what a block
+  declares at its own level rather than every name it contributes. A class
+  with eight methods is nine names and one symbol.
+- `end_of_class` anchored to a class appends a member to *that* class — the
+  direct way to say "add a method to Foo". It lands after the last member,
+  at the indentation its siblings use; an empty class is filled against the
+  top of its body, including the one-line `class Marker {}` shape, where the
+  insertion has to break the line itself.
+
+### Fixed — three defects the change exposed
+
+- **The container stack never popped.** The condition was `depth > $depth`,
+  which is never true for a class declared at the top level, so the stack
+  only ever grew and the newest class shadowed the rest. It looked right for
+  classes in sequence and was wrong for everything after the last one: a
+  top-level function following a class was reported as a method of it, and a
+  method of an anonymous class was adopted by whichever named class preceded
+  it. Containers are now tracked by extent, which is exact.
+
+- **PHP 8 attributes were not attached to anything.** `#[Route('/users')]`
+  above a method is the routing table, not decoration, and an insertion
+  `before` that method went between the two — passing every gate, because
+  the file still parses and the symbol set is unchanged, and silently giving
+  the attribute to a different method. Attributes now join the docblock in
+  the declaration's preamble: outside the symbol's own bytes, so the worker
+  never sees them and cannot lose them, and insertions go above them.
+
+- **A class with no methods counted as no symbols**, so `create_file`
+  refused a file whose class held only constants as "defining no symbols".
+
+### Added
+
+- `tests/test_containers.py` — the symbol map for every container kind,
+  extents proved by slicing each one out and running `php -l` on it, the two
+  attribution regressions, gate 2's counting, inserting a class, and
+  `end_of_class` against a container in both languages.
+
+269 tests, coverage 80%.
+
+---
+
 ## 0.1.3 — 2026-08-24
 
 ### Fixed — three defects found by driving the server instead of reading it
