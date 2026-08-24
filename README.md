@@ -271,7 +271,7 @@ Or from source, without installing:
 ```bash
 git clone https://github.com/FixemBCN/MCP-Bifrost.git
 cd MCP-Bifrost
-python3 -m unittest discover tests    # 130 tests, ~15s
+python3 -m unittest discover tests    # 173 tests, ~20s
 python3 -m mcp_bifrost.server         # same server, PYTHONPATH=.
 ```
 
@@ -281,7 +281,7 @@ with no PHP there is nothing for them to prove. The remaining 75 — gates,
 patcher, budget, Heimdall, the Python adapter — run on the standard library
 alone. Install `php-cli` if you want the PHP half proven on your own machine;
 [CI](https://github.com/FixemBCN/MCP-Bifrost/actions/workflows/tests.yml) runs
-both environments on every push. `git` guards 37 tests the same way.
+both environments on every push. `git` guards 45 tests the same way.
 
 **The key does not go in that file.** Put it in `.bifrost.env` at your project
 root, which the server reads when the environment does not carry it:
@@ -344,7 +344,7 @@ would have corrupted files silently in production. Full write-up:
 | `mcp_bifrost/` | the server |
 | [`CHANGELOG.md`](https://github.com/FixemBCN/MCP-Bifrost/blob/main/CHANGELOG.md) | what changed in each version, and why it was wrong before |
 | [`docs/`](https://github.com/FixemBCN/MCP-Bifrost/blob/main/docs/) | manual, architecture, critical review, calibration, comparison, licensing |
-| `tests/` | 130 tests — 53 need `php`, 37 need `git`, skipped when absent |
+| `tests/` | 173 tests — 53 need `php`, 45 need `git`, skipped when absent |
 | [`brainstorm/`](https://github.com/FixemBCN/MCP-Bifrost/blob/main/brainstorm/) | the working record — how each decision was reached, including the reversed ones |
 | `calibratge/` | the measurement harness |
 

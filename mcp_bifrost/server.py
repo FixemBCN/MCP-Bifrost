@@ -348,17 +348,26 @@ class Server:
         method = req.get("method")
         rid = req.get("id")
 
+        # A request with no `id` is a notification, and JSON-RPC 2.0 forbids
+        # replying to one. Answering `notifications/initialized` alone was
+        # not enough: every other notification a client sends —
+        # `notifications/cancelled`, `notifications/progress` — fell through
+        # to the unknown-method branch and got an error object back with
+        # `"id": null`. That is worse than noise. A client reading one
+        # response per request takes the stray error as the answer to its
+        # next call, and from there every tool result is attributed to the
+        # wrong request for the rest of the session.
+        if "id" not in req or rid is None:
+            return None
+
         if method == "initialize":
             asked = (req.get("params") or {}).get("protocolVersion")
             agreed = asked if asked in self.PROTOCOLS else self.PROTOCOL
             return self._ok(rid, {
                 "protocolVersion": agreed,
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "mcp-bifrost", "version": "0.1.2"},
+                "serverInfo": {"name": "mcp-bifrost", "version": "0.1.3"},
             })
-
-        if method == "notifications/initialized":
-            return None  # a notification: no id, no reply
 
         if method == "tools/list":
             return self._ok(rid, {"tools": TOOLS})

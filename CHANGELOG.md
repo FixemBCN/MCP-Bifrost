@@ -8,6 +8,74 @@ the version was tagged.
 
 ---
 
+## 0.1.3 — 2026-08-24
+
+### Fixed — three defects found by driving the server instead of reading it
+
+Line coverage before this release was 57%, and the gap was not spread
+evenly: `server.py` (the only thing a client ever talks to), `worker.py`,
+`languages/python.py` and `vcs.py` had no test that executed them at all.
+The engine-level tests inject a fake worker, which skips both ends of the
+stack. Driving the real server over stdio, with a stub OpenAI-compatible
+endpoint in place of the model, turned up three bugs in the first twenty
+minutes.
+
+- **Notifications were answered.** Only `notifications/initialized` was
+  recognised as a notification; every other one — `cancelled`, `progress`,
+  `roots/list_changed` — fell through to the unknown-method branch and got
+  an error object back with `"id": null`. JSON-RPC 2.0 forbids replying to
+  a notification, and the consequence is worse than noise: a client reading
+  one response per request takes the stray error as the answer to its next
+  call, and from there every tool result is attributed to the wrong
+  request. Any request without an `id` is now silently accepted.
+
+- **Every patcher refusal surfaced as an internal `TypeError`.** From the
+  point the worker answers, `common` carries a `rationale`; four error
+  handlers passed a second one as a keyword, so `log.record()` raised
+  `TypeError: got multiple values for keyword argument 'rationale'` from
+  inside the handler. The message that was being swallowed is the one a new
+  user is most likely to hit — *"not inside a git repository. Rollback
+  depends on git's object store, so patching outside one is refused."* All
+  nine `record()` calls of that shape now merge instead of colliding.
+
+- **`insert_symbol` could not insert a class.** The `symbol_set` gate
+  required exactly one new name in the symbol map, and a class arrives with
+  its methods: nine names for one insertion. The write was rolled back
+  afterwards, so the refusal looked like a gate catching something real. It
+  now counts roots rather than names, which still catches both things the
+  gate exists for — a block that closes its enclosing class early re-parents
+  the symbols below it and registers as a loss, and two siblings where one
+  was asked for are two roots.
+
+- **Python adapter, two address bugs.** A decorator written `@ deco` (legal
+  Python) left the `@` outside the symbol, handing the worker a block that
+  began with a stray space. And a method of a nested class was addressed as
+  `Inner.method`, the same address a top-level `Inner` would produce in the
+  same file; it is now `Outer.Inner.method`.
+
+### Added
+
+- `tests/test_e2e.py` — a real server subprocess over stdio, a stub
+  OpenAI-compatible worker endpoint served from the test process, and a real
+  git repository. Includes the first test of `fix_symbols`, the parallel
+  batch path: three symbols in one file, each replacement a different length
+  from the original, so every write moves the offsets of the ones after it.
+  That is the most dangerous code in the project and it had none.
+- `tests/test_server.py` — the protocol layer: version negotiation, the
+  notification regression, and a check that every tool in `TOOLS` is
+  dispatchable and marshals its arguments in the declared order.
+- `tests/test_python_adapter.py` — byte offsets under a multibyte prefix,
+  decorators, qualified names, what is addressable and what is deliberately
+  not.
+- `tests/support.py` grows `StubWorkerServer`, which records the payloads it
+  is sent, making the worker contract testable in both directions.
+
+Coverage: 57% → 66% measured in-process, and higher in truth — the
+end-to-end tests run the server in a child process, where the collector does
+not follow.
+
+---
+
 ## 0.1.2 — 2026-08-24
 
 ### Fixed — a clean clone reported 53 failures on any machine without PHP

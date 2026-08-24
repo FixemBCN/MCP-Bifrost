@@ -202,11 +202,25 @@ def check_symbol_set(before: list[str], after: list[str],
                           f"insertion removed {len(lost)} existing symbol(s): "
                           + ", ".join(lost[:5]))
     gained = sorted(a - b)
-    if len(gained) != expected_new:
+
+    # Count roots, not names. A class is one symbol that brings its methods
+    # with it: inserting `class Foo` with eight methods adds nine names to
+    # the map and exactly one root. Counting names refused every class
+    # insertion the tool description promises, and rolled the write back
+    # afterwards, so the refusal looked like a gate catching something.
+    #
+    # Nothing is given up by counting this way. A block that closes its
+    # enclosing class early re-parents the symbols below it — `Foo.bar`
+    # becomes `bar` — which registers as a loss above, and two sibling
+    # functions where one was asked for are two roots here.
+    roots = [n for n in gained
+             if not any(n.startswith(other + sep)
+                        for other in gained for sep in (".", "::"))]
+    if len(roots) != expected_new:
         return GateResult(
             False, "symbol_set",
-            f"expected {expected_new} new symbol(s), got {len(gained)}"
-            + (f": {', '.join(gained[:5])}" if gained else "")
+            f"expected {expected_new} new symbol(s), got {len(roots)}"
+            + (f": {', '.join(roots[:5])}" if roots else "")
         )
     return PASS
 

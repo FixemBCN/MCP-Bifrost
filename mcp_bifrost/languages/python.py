@@ -57,8 +57,13 @@ class PythonAdapter:
             for child in ast.iter_child_nodes(node):
                 if isinstance(child, _DEFS):
                     out.append(self._to_symbol(child, cls, source, starts))
+                    # The qualified path, not the bare name: a method of a
+                    # nested class was addressed as `Inner.method`, which
+                    # collides with a top-level `Inner` in the same file and
+                    # points at neither unambiguously.
+                    nested = (f"{cls}.{child.name}" if cls else child.name)
                     walk(child,
-                         child.name if isinstance(child, ast.ClassDef) else cls)
+                         nested if isinstance(child, ast.ClassDef) else cls)
                 elif isinstance(child, (ast.If, ast.Try, ast.With)):
                     # Conditional definitions are real and addressable.
                     walk(child, cls)
@@ -76,13 +81,19 @@ class PythonAdapter:
         # silently applies to whatever now follows it.
         first = node.decorator_list[0] if node.decorator_list else node
         start_line = first.lineno
-        # Decorators start at `@`, one column before the AST node.
-        start = starts[start_line - 1] + (
-            first.col_offset - 1 if node.decorator_list else node.col_offset
-        )
+        line_start = starts[start_line - 1]
+        if node.decorator_list:
+            # `ast` points at the expression after the `@`, and `@ deco` with
+            # a space is legal Python — so stepping back one column left the
+            # `@` outside the symbol and handed the worker a block beginning
+            # with a stray space. Find the character itself.
+            at = source.rfind(b"@", line_start,
+                              line_start + first.col_offset + 1)
+            start = at if at != -1 else line_start + first.col_offset - 1
+        else:
+            start = line_start + node.col_offset
         end = starts[node.end_lineno - 1] + node.end_col_offset
 
-        line_start = starts[start_line - 1]
         prefix = source[line_start:start]
         indent = prefix.decode("utf-8") if not prefix.strip() else ""
 

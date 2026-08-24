@@ -290,7 +290,7 @@ class Engine:
                       head_sha=head_sha(repo_root(path) or path.parent))
         if not result.ok or result.out is None:
             self.log.record(estat="error", porta="worker",
-                            rationale=result.error, **common)
+                            **{**common, "rationale": result.error})
             return Outcome(False, result.error or "worker failed", gate="worker")
 
         block = apply_indent(result.out.encode("utf-8"), anc.indent)
@@ -302,8 +302,13 @@ class Engine:
             applied = insert_at(path, anc.end_byte, block, anchor_src,
                                 anc.start_byte, anc.end_byte, adapter)
         except PatchError as e:
+            # By this point `common` already carries the worker's own
+            # rationale, so passing another one as a keyword was a TypeError
+            # raised from inside the error handler: every patcher refusal —
+            # "not inside a git repository" first among them — reached the
+            # caller as an internal crash instead of its own message.
             self.log.record(estat="error", porta="patcher",
-                            rationale=str(e), **common)
+                            **{**common, "rationale": str(e)})
             return Outcome(False, str(e), gate="patcher")
         if isinstance(applied, gates.GateResult):
             self.log.record(estat="rebutjat", porta=applied.gate, **common)
@@ -371,7 +376,7 @@ class Engine:
                       cache_hit=result.cache_hit, ms=result.ms)
         if not result.ok or result.out is None:
             self.log.record(estat="error", porta="worker",
-                            rationale=result.error, **common)
+                            **{**common, "rationale": result.error})
             return Outcome(False, result.error or "worker failed", gate="worker")
 
         content = result.out.encode("utf-8")
@@ -416,7 +421,7 @@ class Engine:
                       head_sha=head_sha(repo_root(path) or path.parent))
         if not result.ok or result.out is None:
             self.log.record(estat="error", porta="worker",
-                            rationale=result.error, **common)
+                            **{**common, "rationale": result.error})
             return Outcome(False, result.error or "worker failed", gate="worker")
 
         block = apply_indent(result.out.encode("utf-8"), anc.indent)
@@ -430,7 +435,7 @@ class Engine:
                                 anc.start_byte, anc.end_byte, adapter)
         except PatchError as e:
             self.log.record(estat="error", porta="patcher",
-                            rationale=str(e), **common)
+                            **{**common, "rationale": str(e)})
             return Outcome(False, str(e), gate="patcher")
         if isinstance(applied, gates.GateResult):
             self.log.record(estat="rebutjat", porta=applied.gate, **common)
@@ -540,7 +545,7 @@ class Engine:
 
         if not result.ok or result.out is None:
             self.log.record(estat="error", porta="worker",
-                            rationale=result.error, **common)
+                            **{**common, "rationale": result.error})
             return Outcome(False, result.error or "worker failed", gate="worker")
 
         produced = result.out.encode("utf-8")
@@ -549,7 +554,7 @@ class Engine:
                 produced = heimdall.restore(produced, vault)
             except heimdall.RestoreError as e:
                 self.log.record(estat="rebutjat", porta="heimdall-restore",
-                                rationale=str(e), **common)
+                                **{**common, "rationale": str(e)})
                 return Outcome(False, str(e), gate="heimdall-restore")
 
         new_block = apply_indent(produced, effective_indent)
@@ -574,7 +579,7 @@ class Engine:
                                   original, new_block, adapter)
         except PatchError as e:
             self.log.record(estat="error", porta="patcher",
-                            rationale=str(e), **common)
+                            **{**common, "rationale": str(e)})
             return Outcome(False, str(e), gate="patcher")
 
         if isinstance(applied, gates.GateResult):
@@ -863,7 +868,7 @@ class Engine:
                                   original, new_block, adapter)
         except PatchError as e:
             self.log.record(estat="error", porta="patcher",
-                            rationale=str(e), **common)
+                            **{**common, "rationale": str(e)})
             return Outcome(False, str(e), gate="patcher")
         if isinstance(applied, gates.GateResult):
             self.log.record(estat="rebutjat", porta=applied.gate, **common)
