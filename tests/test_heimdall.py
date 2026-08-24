@@ -22,6 +22,8 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from tests.support import requires_git, requires_php  # noqa: E402
+
 from mcp_bifrost import heimdall  # noqa: E402
 from mcp_bifrost.heimdall import Finding  # noqa: E402
 from mcp_bifrost.budget import Budget, BudgetExceeded  # noqa: E402
@@ -463,6 +465,8 @@ class EngineWiringTestBase(unittest.TestCase):
         return Engine(worker=worker, db_path=db_path, **kwargs)
 
 
+@requires_php
+@requires_git
 class SecretBlocksSendTest(EngineWiringTestBase):
     def test_secret_blocks_before_worker_is_ever_called(self):
         """With redaction disabled, a finding blocks outright."""
@@ -538,6 +542,8 @@ class SecretBlocksSendTest(EngineWiringTestBase):
         engine.close()
 
 
+@requires_php
+@requires_git
 class AllowSecretsOverrideTest(EngineWiringTestBase):
     def test_allow_secrets_lets_it_through_and_logs_the_override(self):
         path = commit_file(self.repo, "config.php", CONFIG_PHP)
@@ -560,6 +566,8 @@ class AllowSecretsOverrideTest(EngineWiringTestBase):
         engine.close()
 
 
+@requires_php
+@requires_git
 class BudgetGateTest(EngineWiringTestBase):
     def test_second_call_is_rejected_once_max_calls_is_reached(self):
         path = commit_file(self.repo, "counter.php", COUNTER_PHP)

@@ -13,7 +13,7 @@
 result passing through the expensive one's context — and without writing
 anything to disk that does not compile.**
 
-[![tests](https://img.shields.io/badge/tests-128%20passing-2ea44f)](https://github.com/FixemBCN/MCP-Bifrost/blob/main/tests/)
+[![tests](https://github.com/FixemBCN/MCP-Bifrost/actions/workflows/tests.yml/badge.svg)](https://github.com/FixemBCN/MCP-Bifrost/actions/workflows/tests.yml)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/FixemBCN/MCP-Bifrost/blob/main/LICENSE)
 [![python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![targets](https://img.shields.io/badge/targets-PHP%20%7C%20Python-777)](https://github.com/FixemBCN/MCP-Bifrost/blob/main/docs/comparison.md)
@@ -271,9 +271,17 @@ Or from source, without installing:
 ```bash
 git clone https://github.com/FixemBCN/MCP-Bifrost.git
 cd MCP-Bifrost
-python3 -m unittest discover tests    # 128 tests, ~15s
+python3 -m unittest discover tests    # 130 tests, ~15s
 python3 -m mcp_bifrost.server         # same server, PYTHONPATH=.
 ```
+
+**Without `php` on your PATH you will see `OK (skipped=53)`,** and that is the
+expected result: those 53 tests drive the real PHP tokenizer, so on a machine
+with no PHP there is nothing for them to prove. The remaining 75 — gates,
+patcher, budget, Heimdall, the Python adapter — run on the standard library
+alone. Install `php-cli` if you want the PHP half proven on your own machine;
+[CI](https://github.com/FixemBCN/MCP-Bifrost/actions/workflows/tests.yml) runs
+both environments on every push. `git` guards 37 tests the same way.
 
 **The key does not go in that file.** Put it in `.bifrost.env` at your project
 root, which the server reads when the environment does not carry it:
@@ -334,8 +342,9 @@ would have corrupted files silently in production. Full write-up:
 | Path | What |
 |---|---|
 | `mcp_bifrost/` | the server |
+| [`CHANGELOG.md`](https://github.com/FixemBCN/MCP-Bifrost/blob/main/CHANGELOG.md) | what changed in each version, and why it was wrong before |
 | [`docs/`](https://github.com/FixemBCN/MCP-Bifrost/blob/main/docs/) | manual, architecture, critical review, calibration, comparison, licensing |
-| `tests/` | 128 tests |
+| `tests/` | 130 tests — 53 need `php`, 37 need `git`, skipped when absent |
 | [`brainstorm/`](https://github.com/FixemBCN/MCP-Bifrost/blob/main/brainstorm/) | the working record — how each decision was reached, including the reversed ones |
 | `calibratge/` | the measurement harness |
 

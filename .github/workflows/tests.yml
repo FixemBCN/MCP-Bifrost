@@ -1,0 +1,84 @@
+# The badge in the README points at this workflow rather than at a number
+# somebody typed by hand. Two jobs, because there are two truths to keep:
+# the suite passes with the external binaries present, AND it degrades to
+# honest skips without them.
+
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  full:
+    name: python ${{ matrix.python }} + php
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install the PHP CLI
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends php-cli
+
+      - name: Versions under test
+        run: python3 --version && php --version && git --version
+
+      - name: Run the suite
+        # pipefail matters: without it `tee` supplies the exit code and a
+        # failing suite would report green.
+        run: |
+          set -o pipefail
+          python3 -m unittest discover tests -v 2>&1 | tee result.txt
+
+      - name: Nothing may be skipped here
+        # With php and git both present the whole suite must actually run.
+        # A skip in this job means a guard is firing when it should not.
+        run: |
+          if grep -q "skipped=" result.txt; then
+            echo "::error::tests were skipped in the full environment"
+            grep -n "skipped" result.txt
+            exit 1
+          fi
+
+  no-php:
+    name: python 3.13, no php
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Take php off PATH
+        # This is the machine of the visitor who works in Python or JS: git,
+        # no php. The suite must come out green with skips, not a wall of
+        # FileNotFoundError.
+        run: |
+          if command -v php; then sudo mv "$(command -v php)" /usr/bin/php.disabled; fi
+          ! command -v php
+
+      - name: Run the suite
+        run: |
+          set -o pipefail
+          python3 -m unittest discover tests 2>&1 | tee result.txt
+
+      - name: The php tests must be skipped, not passed silently
+        # Guards that stop firing would make this job green for the wrong
+        # reason: the PHP half would look tested when php is not installed.
+        run: |
+          grep -q "OK (skipped=" result.txt || {
+            echo "::error::expected skips without php; got none"
+            tail -5 result.txt
+            exit 1
+          }
+          tail -3 result.txt

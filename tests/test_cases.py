@@ -34,6 +34,8 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from tests.support import requires_git, requires_php  # noqa: E402
+
 from mcp_bifrost.engine import Engine, Outcome  # noqa: E402
 from mcp_bifrost.gates import check_case_set  # noqa: E402
 from mcp_bifrost.languages import ExtractionError  # noqa: E402
@@ -200,6 +202,7 @@ function route(string $action): string
 """
 
 
+@requires_php
 class CaseExtractionBasicTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -231,6 +234,7 @@ class CaseExtractionBasicTest(unittest.TestCase):
                 self.assertEqual(c.start_line, line_of(src, c.start_byte))
 
 
+@requires_php
 class CaseExtractionContentByteExactTest(unittest.TestCase):
     """
     Point 2 of the spec, done honestly: literally slicing a block out of a
@@ -289,6 +293,7 @@ function route(string $x): void
 """
 
 
+@requires_php
 class CaseExtractionBoundaryExcludesGapCommentTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -355,6 +360,7 @@ class CaseExtractionUtf8OffsetTest(unittest.TestCase):
         as_text = UTF8_PREFIX_SWITCH_PHP.decode("utf-8")
         self.assertNotEqual(len(UTF8_PREFIX_SWITCH_PHP), len(as_text))
 
+    @requires_php
     def test_extraction_is_still_byte_exact_past_the_multibyte_prefix(self):
         src = UTF8_PREFIX_SWITCH_PHP
         cases = {c.label: c for c in self.php.cases(self.path)}
@@ -388,6 +394,7 @@ function route(string $x): void
 """
 
 
+@requires_php
 class CaseExtractionFallthroughTest(unittest.TestCase):
     """
     Actual observed behaviour (verified by running extract.php on this
@@ -475,6 +482,7 @@ function route(string $x, string $y): void
 """
 
 
+@requires_php
 class CaseExtractionNestedSwitchTest(unittest.TestCase):
     """
     Regression: a nested switch used to corrupt the case list.
@@ -527,6 +535,7 @@ class CaseExtractionNestedSwitchTest(unittest.TestCase):
         self.assertNotIn(b"}", body)
 
 
+@requires_php
 class FindCaseErrorsTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -571,6 +580,7 @@ function plain(): int
 """
 
 
+@requires_php
 class CaseExtractionNoSwitchTest(unittest.TestCase):
     def test_empty_list_for_a_file_with_no_switch(self):
         with tempfile.TemporaryDirectory() as d:
@@ -640,6 +650,8 @@ function route(string $action): string
 """
 
 
+@requires_php
+@requires_git
 class InsertCaseOrderTest(EngineTestBase):
     def test_new_case_lands_between_anchor_and_the_next_one(self):
         path = commit_file(self.repo, "router.php", THREE_CASE_SWITCH_PHP)
@@ -659,6 +671,8 @@ class InsertCaseOrderTest(EngineTestBase):
         engine.close()
 
 
+@requires_php
+@requires_git
 class InsertCaseDuplicateLabelRejectedTest(EngineTestBase):
     """
     The gate's whole purpose: a worker that returns a case whose label
@@ -697,6 +711,7 @@ class InsertCaseDuplicateLabelRejectedTest(EngineTestBase):
         self.assertTrue(ok, msg)
 
 
+@requires_git
 class InsertCaseUnknownAnchorTest(EngineTestBase):
     def test_unknown_anchor_is_rejected_before_touching_the_worker(self):
         path = commit_file(self.repo, "router.php", THREE_CASE_SWITCH_PHP)
@@ -709,6 +724,8 @@ class InsertCaseUnknownAnchorTest(EngineTestBase):
         engine.close()
 
 
+@requires_php
+@requires_git
 class InsertCaseStaleAnchorTest(EngineTestBase):
     def test_stale_anchor_is_rejected_and_file_left_as_mutated(self):
         path = commit_file(self.repo, "router.php", THREE_CASE_SWITCH_PHP)
@@ -728,6 +745,8 @@ class InsertCaseStaleAnchorTest(EngineTestBase):
         engine.close()
 
 
+@requires_php
+@requires_git
 class InsertCasePatchGroupTest(EngineTestBase):
     def test_insert_case_succeeds_as_one_step_of_a_group(self):
         path = commit_file(self.repo, "router.php", THREE_CASE_SWITCH_PHP)

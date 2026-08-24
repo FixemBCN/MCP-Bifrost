@@ -12,7 +12,9 @@ Run: python3 -m unittest discover tests -v   (from the repo root)
 
 from __future__ import annotations
 
+import json
 import os
+import re
 import stat
 import subprocess
 import sys
@@ -25,6 +27,8 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
+
+from tests.support import requires_git, requires_php  # noqa: E402
 
 from mcp_bifrost.languages import (  # noqa: E402
     ExtractionError,
@@ -99,6 +103,7 @@ class Calculator
 """.encode("utf-8")
 
 
+@requires_git
 class ByteOffsetTrapTest(unittest.TestCase):
     """
     The bug the whole design turns on: PHP reports byte offsets, and a
@@ -122,6 +127,7 @@ class ByteOffsetTrapTest(unittest.TestCase):
         source_text = source_bytes.decode("utf-8")
         self.assertNotEqual(len(source_bytes), len(source_text))
 
+    @requires_php
     def test_extraction_lands_on_the_correct_bytes(self):
         source_bytes = self.path.read_bytes()
         sym = self.php.find(self.path, "Calculator::compute")
@@ -139,6 +145,7 @@ class ByteOffsetTrapTest(unittest.TestCase):
         # A boundary landing mid-character would make this raise.
         block.decode("utf-8")
 
+    @requires_php
     def test_extraction_splice_roundtrip_under_multibyte_prefix(self):
         source_bytes = self.path.read_bytes()
         sym = self.php.find(self.path, "Calculator::compute")
@@ -258,6 +265,7 @@ class CheckOffsetsTest(unittest.TestCase):
 
 # ------------------------------------------------------------ 4. gate 1
 
+@requires_php
 class CheckSyntaxTest(unittest.TestCase):
     def setUp(self):
         self.php = PhpAdapter()
@@ -280,6 +288,7 @@ class CheckSingleSymbolTest(unittest.TestCase):
     def setUp(self):
         self.php = PhpAdapter()
 
+    @requires_php
     def test_passes_for_one_method(self):
         block = b"public function foo()\n{\n    return 1;\n}"
         result = check_single_symbol(self.php, block)
@@ -400,6 +409,8 @@ class Greeter
 """
 
 
+@requires_php
+@requires_git
 class ApplyBlockEndToEndTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -482,6 +493,7 @@ class ApplyBlockEndToEndTest(unittest.TestCase):
 
 # --------------------------------------------------------- 10. PhpAdapter.find
 
+@requires_php
 class PhpAdapterFindTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -545,6 +557,7 @@ if __name__ == "__main__":
     unittest.main()
 
 
+@requires_php
 class TestInterpolationBraces(unittest.TestCase):
     """
     Regression: PHP tokenises the '{' of "{$a['b']}" as T_CURLY_OPEN — a named
@@ -655,3 +668,66 @@ class TestPackaging(unittest.TestCase):
         text = pyproject.read_text(encoding="utf-8")
         self.assertIn("package-data", text)
         self.assertIn('"*.php"', text)
+
+
+class VersionConsistencyTest(unittest.TestCase):
+    """
+    One version number, declared in four places.
+
+    `pyproject.toml` is what PyPI publishes, `server.json` is what the MCP
+    registry ingests (twice: the server and the package it points at), and
+    `serverInfo` is what a client sees on `initialize`. A mismatch between
+    the first two is rejected by the registry days after the fact; a mismatch
+    with the third is never rejected at all and simply reports the wrong
+    version forever. They are bumped by hand, so this is the check that they
+    were all bumped together.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.root = Path(__file__).resolve().parent.parent
+
+    def _read(self, name: str) -> str:
+        p = self.root / name
+        if not p.exists():
+            self.skipTest("running outside the source tree")
+        return p.read_text(encoding="utf-8")
+
+    def test_all_four_declarations_agree(self):
+        import tomllib
+
+        pyproject = tomllib.loads(self._read("pyproject.toml"))
+        declared = pyproject["project"]["version"]
+
+        server_json = json.loads(self._read("server.json"))
+        found = {
+            "pyproject.toml": declared,
+            "server.json:server": server_json["version"],
+        }
+        for i, pkg in enumerate(server_json["packages"]):
+            found[f"server.json:packages[{i}]"] = pkg["version"]
+
+        from mcp_bifrost import server as server_mod
+        m = re.search(r'"serverInfo":\s*\{[^}]*"version":\s*"([^"]+)"',
+                      Path(server_mod.__file__).read_text(encoding="utf-8"))
+        self.assertIsNotNone(m, "serverInfo carries no version literal")
+        found["server.py:serverInfo"] = m.group(1)
+
+        disagreeing = {k: v for k, v in found.items() if v != declared}
+        self.assertEqual(
+            {}, disagreeing,
+            f"version is {declared} in pyproject.toml but differs in: {disagreeing}")
+
+    def test_the_changelog_documents_the_declared_version(self):
+        """A release nobody wrote down is a release nobody can audit."""
+        import tomllib
+
+        declared = tomllib.loads(self._read("pyproject.toml"))["project"]["version"]
+        changelog = self._read("CHANGELOG.md")
+        headings = re.findall(r"^##\s+([0-9]+\.[0-9]+\.[0-9]+)", changelog, re.M)
+        self.assertIn(
+            declared, headings,
+            f"CHANGELOG.md has no section for {declared} (found {headings})")
+        self.assertEqual(
+            declared, headings[0],
+            f"CHANGELOG.md leads with {headings[0]}, not the declared {declared}")

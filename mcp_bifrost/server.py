@@ -354,7 +354,7 @@ class Server:
             return self._ok(rid, {
                 "protocolVersion": agreed,
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "mcp-bifrost", "version": "0.1.1"},
+                "serverInfo": {"name": "mcp-bifrost", "version": "0.1.2"},
             })
 
         if method == "notifications/initialized":

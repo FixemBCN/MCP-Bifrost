@@ -23,6 +23,31 @@ from . import Case, ExtractionError, Symbol
 EXTRACTOR = Path(__file__).parent / "extract.php"
 
 
+class PhpBinaryMissing(ExtractionError):
+    """`php` is not on PATH. Not a parse failure — nothing was parsed."""
+
+
+def _run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
+    """
+    Every shell-out to `php` goes through here.
+
+    Without this, a machine with no PHP installed gets a bare
+    `FileNotFoundError: [Errno 2] No such file or directory: 'php'` from
+    whichever of the five call sites it reached first, surfaced by the engine
+    as a `resolve` failure — which reads like a bug in the code rather than a
+    missing binary. It is a missing binary, and this is the one place that
+    can say so before the errno reaches anybody.
+    """
+    try:
+        return subprocess.run(cmd, **kwargs)
+    except FileNotFoundError as e:
+        raise PhpBinaryMissing(
+            f"`{cmd[0]}` is not on PATH: PHP support needs the PHP CLI "
+            f"(Debian/Ubuntu: `apt install php-cli`; macOS: `brew install php`). "
+            f"Python files need nothing beyond the standard library."
+        ) from e
+
+
 class PhpAdapter:
     name = "php"
     extensions = (".php",)
@@ -33,7 +58,7 @@ class PhpAdapter:
     # ------------------------------------------------------------ extraction
 
     def symbols(self, path: Path) -> list[Symbol]:
-        proc = subprocess.run(
+        proc = _run(
             [self.php, str(EXTRACTOR), str(path)],
             capture_output=True, text=True,
         )
@@ -97,7 +122,7 @@ class PhpAdapter:
 
     def cases(self, path: Path) -> list[Case]:
         """Every `switch` branch in the file, in source order."""
-        proc = subprocess.run([self.php, str(EXTRACTOR), str(path)],
+        proc = _run([self.php, str(EXTRACTOR), str(path)],
                               capture_output=True, text=True)
         if proc.returncode != 0:
             raise ExtractionError(f"{path}: extract.php exited "
@@ -148,7 +173,7 @@ class PhpAdapter:
         try:
             with os.fdopen(fd, "wb") as fh:
                 fh.write(source)
-            proc = subprocess.run(
+            proc = _run(
                 [self.php, "-l", tmp], capture_output=True, text=True
             )
             if proc.returncode == 0:
@@ -182,14 +207,14 @@ class PhpAdapter:
         try:
             with os.fdopen(fd, "wb") as fh:
                 fh.write(b"<?php\nclass __BifrostProbe {\n" + block + b"\n}\n")
-            proc = subprocess.run(
+            proc = _run(
                 [self.php, str(EXTRACTOR), tmp], capture_output=True, text=True
             )
             if proc.returncode != 0:
                 # Not inside a class, perhaps. Try the block bare.
                 with open(tmp, "wb") as fh:
                     fh.write(b"<?php\n" + block + b"\n")
-                proc = subprocess.run(
+                proc = _run(
                     [self.php, str(EXTRACTOR), tmp],
                     capture_output=True, text=True,
                 )

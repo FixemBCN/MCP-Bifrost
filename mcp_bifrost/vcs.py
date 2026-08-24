@@ -26,9 +26,27 @@ class VcsError(RuntimeError):
     pass
 
 
+class GitBinaryMissing(VcsError):
+    """`git` is not on PATH. Same shape of problem as PhpBinaryMissing."""
+
+
+def _run_git(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
+    """
+    A missing `git` should say so, not surface as errno 2 from whichever
+    call site got there first.
+    """
+    try:
+        return subprocess.run(cmd, **kwargs)
+    except FileNotFoundError as e:
+        raise GitBinaryMissing(
+            "`git` is not on PATH: the branch, commit and push tools need it. "
+            "Patching itself does not."
+        ) from e
+
+
 def _git(repo: Path, *args: str, check: bool = True) -> str:
-    proc = subprocess.run(["git", "-C", str(repo), *args],
-                          capture_output=True, text=True)
+    proc = _run_git(["git", "-C", str(repo), *args],
+                    capture_output=True, text=True)
     if check and proc.returncode != 0:
         raise VcsError(f"git {' '.join(args)}: {proc.stderr.strip()}")
     return proc.stdout.strip()
@@ -90,7 +108,7 @@ def commit_files(repo: Path, files: list[str], message: str) -> str:
     if not staged.strip():
         raise VcsError("nothing to commit — the files are unchanged")
 
-    proc = subprocess.run(
+    proc = _run_git(
         ["git", "-C", str(st.root), "commit", "-F", "-"],
         input=message, capture_output=True, text=True)
     if proc.returncode != 0:

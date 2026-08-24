@@ -25,6 +25,8 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from tests.support import requires_git, requires_php  # noqa: E402
+
 from mcp_bifrost.engine import Engine, Outcome  # noqa: E402
 from mcp_bifrost.gates import (  # noqa: E402
     check_absent,
@@ -230,6 +232,7 @@ class CheckNonemptyTest(unittest.TestCase):
         result = check_nonempty(self.php, content)
         self.assertTrue(result)
 
+    @requires_php
     def test_php_l_itself_accepts_the_empty_file_this_gate_exists_for(self):
         # The reason check_nonempty must exist as a SEPARATE gate: syntax
         # validation alone waves an empty file through.
@@ -279,6 +282,8 @@ class Foo
 """
 
 
+@requires_php
+@requires_git
 class InsertSymbolOrderTest(EngineTestBase):
     def test_position_after_lands_between_anchor_and_next_symbol(self):
         path = commit_file(self.repo, "widget.php", THREE_METHOD_PHP)
@@ -321,6 +326,8 @@ class InsertSymbolOrderTest(EngineTestBase):
         engine.close()
 
 
+@requires_php
+@requires_git
 class InsertSymbolValidityTest(EngineTestBase):
     def test_result_parses_and_every_preexisting_symbol_survives(self):
         path = commit_file(self.repo, "widget.php", THREE_METHOD_PHP)
@@ -343,6 +350,8 @@ class InsertSymbolValidityTest(EngineTestBase):
         engine.close()
 
 
+@requires_php
+@requires_git
 class InsertSymbolStaleAnchorTest(EngineTestBase):
     class _MutatesUnderneathWorker:
         """Simulates another process editing the file's anchor region
@@ -379,6 +388,8 @@ class InsertSymbolStaleAnchorTest(EngineTestBase):
         engine.close()
 
 
+@requires_php
+@requires_git
 class InsertSymbolClosesClassEarlyTest(EngineTestBase):
     """
     The gate's whole purpose: a block that closes the enclosing class one
@@ -429,6 +440,7 @@ class InsertSymbolClosesClassEarlyTest(EngineTestBase):
         self.assertTrue(ok, msg)
 
 
+@requires_git
 class InsertSymbolInvalidPositionTest(EngineTestBase):
     def test_bad_position_is_rejected_before_touching_the_worker(self):
         path = commit_file(self.repo, "widget.php", THREE_METHOD_PHP)
@@ -447,6 +459,8 @@ class InsertSymbolInvalidPositionTest(EngineTestBase):
 #  9-12. create_file
 # ===================================================================== #
 
+@requires_php
+@requires_git
 class CreateFileSuccessTest(EngineTestBase):
     def test_creates_file_with_worker_content_and_trailing_newline(self):
         target = Path(self.repo) / "fresh.php"
@@ -466,6 +480,7 @@ class CreateFileSuccessTest(EngineTestBase):
         engine.close()
 
 
+@requires_git
 class CreateFileRefusesExistingTest(EngineTestBase):
     def test_refuses_when_target_exists_and_leaves_it_untouched(self):
         original = b"<?php\n\nclass AlreadyHere {}\n"
@@ -480,6 +495,7 @@ class CreateFileRefusesExistingTest(EngineTestBase):
         engine.close()
 
 
+@requires_git
 class CreateFileRefusesEmptyTest(EngineTestBase):
     def test_refuses_empty_worker_response_and_creates_no_file(self):
         target = Path(self.repo) / "empty.php"
@@ -493,7 +509,9 @@ class CreateFileRefusesEmptyTest(EngineTestBase):
         engine.close()
 
 
+@requires_git
 class CreateFileModelFromTest(EngineTestBase):
+    @requires_php
     def test_model_from_puts_full_exemplar_text_in_the_payload(self):
         exemplar_content = (
             b"<?php\n\nclass ExemplarSample\n{\n"
@@ -551,6 +569,8 @@ class Alpha
 """
 
 
+@requires_php
+@requires_git
 class PatchGroupAllSucceedTest(EngineTestBase):
     def test_all_operations_succeed_and_every_effect_is_present(self):
         path_a = commit_file(self.repo, "alpha.php", TWO_FILE_A_PHP)
@@ -592,6 +612,7 @@ class PatchGroupAllSucceedTest(EngineTestBase):
         engine.close()
 
 
+@requires_git
 class PatchGroupMidFailureRollsBackTest(EngineTestBase):
     def test_modified_file_restored_and_created_file_deleted(self):
         path_a = commit_file(self.repo, "alpha.php", TWO_FILE_A_PHP)
@@ -637,6 +658,7 @@ class PatchGroupMidFailureRollsBackTest(EngineTestBase):
         engine.close()
 
 
+@requires_git
 class PatchGroupAbortReasonsTest(EngineTestBase):
     def test_unknown_op_name_aborts_and_rolls_back(self):
         path_a = commit_file(self.repo, "alpha.php", TWO_FILE_A_PHP)
@@ -683,6 +705,7 @@ class PatchGroupAbortReasonsTest(EngineTestBase):
         engine.close()
 
 
+@requires_git
 class PatchGroupReverseOrderRollbackTest(EngineTestBase):
     def test_two_sequential_inserts_into_the_same_file_roll_back_in_reverse(self):
         path = commit_file(self.repo, "widget.php", THREE_METHOD_PHP)
