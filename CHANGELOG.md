@@ -8,6 +8,30 @@ the version was tagged.
 
 ---
 
+## 0.1.6 — 2026-08-25
+
+### Added — `mcp-bifrost init-hook`, so the deferred-tool nudge ships with the package
+
+A client that defers a tool's schema shows it to the model as a bare name
+until something asks for it, and repeating the same mechanical edit several
+times in a row does not, by itself, prompt that ask. That is exactly what
+happened over a full session of real use: `insert_case` sat unused while the
+same switch-case pattern got hand-edited over and over, and two of those
+hand-edits collided on the same file — the exact failure `insert_case`'s
+label-anchoring exists to prevent. The tool was only found because someone
+asked what it did.
+
+The fix so far lived only in one person's global Claude Code config: a
+`PreToolUse` hook on `Edit`/`Write` that reminds the client to check for a
+fitting Bifrost tool before hand-editing. `mcp-bifrost init-hook` (project-
+level by default, `--global` for the user-level file) now writes that hook
+into `.claude/settings.json` directly — additively, so any hooks already
+there are left alone, and idempotently, so running it twice is a no-op.
+`mcp-bifrost hook-guard` is what the hook itself invokes. README's Quick
+start now points at it right next to the `.mcp.json` snippet.
+
+---
+
 ## 0.1.5 — 2026-08-24
 
 ### Fixed — the package did not import on Python 3.11

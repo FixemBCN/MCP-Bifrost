@@ -278,6 +278,27 @@ Add it to `.mcp.json` in the project you want to patch:
 }
 ```
 
+**A tool the client only lists by name is easy to forget mid-task.** MCP
+clients that defer tool schemas show Bifrost's tools as bare names until
+something asks for them, and nothing about repeating the same mechanical edit
+five times in a row prompts that ask on its own — that is exactly how the
+first six months of dogfooding went: `insert_case` sat unused for an entire
+session while the same switch-case pattern got hand-edited over and over,
+which then collided across two parallel edits in exactly the way
+`insert_case`'s anchoring exists to prevent. Close the gap once, for this
+project:
+
+```bash
+mcp-bifrost init-hook            # writes .claude/settings.json in this project
+mcp-bifrost init-hook --global   # or: ~/.claude/settings.json, for every project
+```
+
+This adds a `PreToolUse` hook on `Edit`/`Write` that reminds the client to
+check for a fitting Bifrost tool before hand-editing — additively, so any
+hooks you already have stay in place. Run it again any time; it is a no-op
+once the hook is there. Commit the project-level `.claude/settings.json` so
+the nudge travels with the repo instead of living only on one machine.
+
 Or from source, without installing:
 
 ```bash

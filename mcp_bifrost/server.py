@@ -374,7 +374,7 @@ class Server:
             return self._ok(rid, {
                 "protocolVersion": agreed,
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "mcp-bifrost", "version": "0.1.5"},
+                "serverInfo": {"name": "mcp-bifrost", "version": "0.1.6"},
             })
 
         if method == "tools/list":
@@ -485,6 +485,14 @@ class Server:
 
 
 def main() -> int:
+    argv = sys.argv[1:]
+    if argv and argv[0] == "hook-guard":
+        from .hooks import hook_guard
+        return hook_guard()
+    if argv and argv[0] == "init-hook":
+        from .hooks import init_hook_main
+        return init_hook_main(argv[1:])
+
     try:
         worker = DeepSeekWorker()
     except RuntimeError as e:
