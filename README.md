@@ -299,22 +299,31 @@ hooks you already have stay in place. Run it again any time; it is a no-op
 once the hook is there. Commit the project-level `.claude/settings.json` so
 the nudge travels with the repo instead of living only on one machine.
 
+A reminder alone turned out not to be enough — a full build session with the
+hook installed and firing 50+ times still routed 96% of new files through a
+raw `Write` (see docs/critical-review.md, RF-13). So the hook also *blocks*
+the one case its payload alone can prove without a judgment call: `Write` to
+a file that does not exist yet, in a directory where three or more siblings
+already share its extension. That gets denied outright, naming the
+suggested `create_file(model_from=<nearest sibling>)`. Everything else stays
+advisory.
+
 Or from source, without installing:
 
 ```bash
 git clone https://github.com/FixemBCN/MCP-Bifrost.git
 cd MCP-Bifrost
-python3 -m unittest discover tests    # 287 tests, ~31s
+python3 -m unittest discover tests    # 308 tests, ~32s
 python3 -m mcp_bifrost.server         # same server, PYTHONPATH=.
 ```
 
 **Without `php` on your PATH you will see `OK (skipped=80)`,** and that is the
 expected result: those 80 tests drive the real PHP tokenizer, so on a machine
-with no PHP there is nothing for them to prove. The remaining 205 — gates,
+with no PHP there is nothing for them to prove. The remaining 228 — gates,
 patcher, budget, Heimdall, the Python adapter — run on the standard library
 alone. Install `php-cli` if you want the PHP half proven on your own machine;
 [CI](https://github.com/FixemBCN/MCP-Bifrost/actions/workflows/tests.yml) runs
-both environments on every push. `git` guards 86 tests the same way.
+both environments on every push. `git` guards 91 tests the same way.
 
 **The key does not go in that file.** Put it in `.bifrost.env` at your project
 root, which the server reads when the environment does not carry it:
@@ -334,9 +343,9 @@ that matters, are in [the manual](https://github.com/FixemBCN/MCP-Bifrost/blob/m
 | Tool | What it does |
 |---|---|
 | `fix_symbols` | one instruction across many symbols — **the main one** |
-| `fix_symbol` / `fix_range` | rewrite one symbol, or an explicit line range |
+| `fix_symbol` / `fix_range` | rewrite one symbol, or an explicit line range — optional `verify` command, reverted on failure |
 | `insert_symbol` / `insert_case` | add a function, method or class, or a branch to a switch router |
-| `create_file` | write a new file, optionally by analogy with an existing one |
+| `create_file` | write a new file, optionally by analogy with an existing one — optional `verify` command, deleted on failure |
 | `patch_group` | several operations as one transaction |
 | `export_docs` / `publish_session` | changelog from the log; batch onto a reviewable branch |
 | `revert_patch` / `revert_session` | undo one patch, or the whole batch |
@@ -377,7 +386,7 @@ would have corrupted files silently in production. Full write-up:
 | `mcp_bifrost/` | the server |
 | [`CHANGELOG.md`](https://github.com/FixemBCN/MCP-Bifrost/blob/main/CHANGELOG.md) | what changed in each version, and why it was wrong before |
 | [`docs/`](https://github.com/FixemBCN/MCP-Bifrost/blob/main/docs/) | manual, architecture, critical review, calibration, comparison, licensing |
-| `tests/` | 287 tests — 80 need `php`, 86 need `git`, skipped when absent |
+| `tests/` | 308 tests — 80 need `php`, 91 need `git`, skipped when absent |
 | [`brainstorm/`](https://github.com/FixemBCN/MCP-Bifrost/blob/main/brainstorm/) | the working record — how each decision was reached, including the reversed ones |
 | `calibratge/` | the measurement harness |
 | [`.github/`](https://github.com/FixemBCN/MCP-Bifrost/blob/main/.github/workflows/tests.yml) | the workflow the badge reports: the suite with `php`, and again without it |

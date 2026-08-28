@@ -225,6 +225,29 @@ def insert_at(path: Path, at: int, block: bytes, anchor_src: bytes,
                    diff_stat=f"+{added}/-0")
 
 
+def run_verify(cwd: Path, command: str, timeout: int = 120) -> tuple[bool, str]:
+    """
+    Run a caller-supplied command after a write lands, and report whether it
+    passed.
+
+    Shells out rather than shlex-splitting: verification commands are
+    typically a whole pipeline ("pytest tests/test_rbl.py -q"), and the
+    caller who wrote `verify=` is the same person who would have typed it at
+    a prompt. A nonzero exit is the signal being checked for, not an error in
+    this function, so it is returned rather than raised — only a hung or
+    unlaunchable command is exceptional.
+    """
+    try:
+        proc = subprocess.run(command, shell=True, cwd=str(cwd),
+                              capture_output=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return False, f"verification command timed out after {timeout}s: {command}"
+    except OSError as e:
+        return False, f"verification command failed to start: {e}"
+    output = (proc.stdout + proc.stderr).decode("utf-8", "replace").strip()
+    return proc.returncode == 0, output
+
+
 def create(path: Path, content: bytes, adapter) -> Applied | GateResult:
     """
     Write a new file. Never overwrites — the caller checks that first.

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcp-bifrost"
-version = "0.1.6"
+version = "0.1.7"
 description = "An MCP server that delegates mechanical code edits to a cheap worker model, validates them through a chain of gates, and applies them atomically."
 readme = "README.md"
 requires-python = ">=3.11"

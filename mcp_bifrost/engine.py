@@ -21,7 +21,7 @@ from .languages.php import PhpAdapter
 from .languages.python import PythonAdapter
 from .log import PatchLog
 from .patcher import (Applied, PatchError, apply_block, create, head_sha,
-                      insert_at, repo_root, revert)
+                      insert_at, repo_root, revert, run_verify)
 from .worker import WorkerClient
 from . import docgen, vcs
 
@@ -68,6 +68,13 @@ class Outcome:
                 return f"OK {self.diff_stat}"
             return f"OK {self.message}".strip() if self.message else "OK"
         return f"ERROR [{self.gate or 'engine'}] {self.message}"
+
+
+def _truncate(text: str, limit: int = 4000) -> str:
+    """Cap verification output before it reaches the log or the caller."""
+    if len(text) <= limit:
+        return text
+    return text[:limit] + f"\n... [{len(text) - limit} more bytes truncated]"
 
 
 def _inside_end_of(source: bytes, sym: Symbol) -> int:
@@ -119,7 +126,8 @@ class Engine:
 
     def fix_symbol(self, file_path: str, symbol: str,
                    instruction: str, context: list[str] | None = None,
-                   allow_secrets: bool = False) -> Outcome:
+                   allow_secrets: bool = False,
+                   verify: str | None = None) -> Outcome:
         path = Path(file_path).resolve()
         if not path.is_file():
             return Outcome(False, f"no such file: {path}", gate="input")
@@ -135,7 +143,7 @@ class Engine:
             return Outcome(False, size.detail, gate=size.gate)
 
         return self._run(path, adapter, sym, instruction, context or [],
-                         allow_secrets=allow_secrets)
+                         allow_secrets=allow_secrets, verify=verify)
 
     def fix_range(self, file_path: str, start_line: int, end_line: int,
                   instruction: str, context: list[str] | None = None,
@@ -396,7 +404,8 @@ class Engine:
 
     def create_file(self, file_path: str, instruction: str,
                     model_from: str | None = None,
-                    allow_secrets: bool = False) -> Outcome:
+                    allow_secrets: bool = False,
+                    verify: str | None = None) -> Outcome:
         """
         Write a new file, optionally by analogy with an existing one.
 
@@ -462,6 +471,17 @@ class Engine:
         if isinstance(outcome, gates.GateResult):
             self.log.record(estat="rebutjat", porta=outcome.gate, **common)
             return Outcome(False, outcome.detail, gate=outcome.gate)
+
+        if verify:
+            # Rollback for a creation is deletion — the same rule _undo()
+            # already follows for a reverted create_file patch.
+            passed, output = run_verify(repo_root(path) or path.parent, verify)
+            if not passed:
+                path.unlink(missing_ok=True)
+                self.log.record(estat="rebutjat", porta="verify",
+                                **{**common, "rationale": _truncate(output)})
+                return Outcome(False, _truncate(output) or
+                               "verification command failed", gate="verify")
 
         pid = self.log.record(estat="ok", blob_abans="", **common)
         return Outcome(True, "created", patch_id=pid,
@@ -568,7 +588,8 @@ class Engine:
 
     def _run(self, path: Path, adapter, sym: Symbol, instruction: str,
              context: list[str], op: str = "fix_symbol",
-             allow_secrets: bool = False) -> Outcome:
+             allow_secrets: bool = False,
+             verify: str | None = None) -> Outcome:
         source = path.read_bytes()
         original = sym.extract(source)
 
@@ -695,6 +716,20 @@ class Engine:
             self.log.record(estat="rebutjat", porta=applied.gate, **common)
             return Outcome(False, applied.detail, gate=applied.gate)
 
+        if verify:
+            # The gap a subagent closes and create_file/fix_symbol did not:
+            # a syntactically valid write that is still wrong. Run the
+            # caller's own check and revert on failure, the same way gate 1
+            # (symbol/case-set) already does — a rejected write should never
+            # be the one kind of failure that is left on disk.
+            passed, output = run_verify(repo_root(path) or path.parent, verify)
+            if not passed:
+                revert(path, applied.blob_before)
+                self.log.record(estat="rebutjat", porta="verify",
+                                **{**common, "rationale": _truncate(output)})
+                return Outcome(False, _truncate(output) or
+                               "verification command failed", gate="verify")
+
         patch_id = self.log.record(estat="ok", blob_abans=applied.blob_before,
                                    **common)
         return Outcome(True, "applied", patch_id=patch_id,
@@ -774,7 +809,8 @@ class Engine:
         dispatch = {
             "fix_symbol": lambda o: self.fix_symbol(
                 o["file_path"], o["symbol_name"], o["instruction"],
-                o.get("context"), o.get("allow_secrets", False)),
+                o.get("context"), o.get("allow_secrets", False),
+                o.get("verify")),
             "fix_range": lambda o: self.fix_range(
                 o["file_path"], int(o["start_line"]), int(o["end_line"]),
                 o["instruction"], o.get("context"),
@@ -788,7 +824,7 @@ class Engine:
                 o.get("allow_secrets", False)),
             "create_file": lambda o: self.create_file(
                 o["file_path"], o["instruction"], o.get("model_from"),
-                o.get("allow_secrets", False)),
+                o.get("allow_secrets", False), o.get("verify")),
         }
 
         applied: list[str] = []

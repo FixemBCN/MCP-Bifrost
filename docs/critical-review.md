@@ -394,6 +394,80 @@ produces.
 
 ---
 
+## 🔴 RF-13 — The hook nudges where it must gate
+
+**Source:** field evidence, not review. One full build session on another
+project (Argos, 2026-08-27, Claude Code + Sonnet, hook installed and firing).
+
+| | |
+|---|---|
+| Files created in the session | **54** |
+| Created via Bifrost | **2** (3.7%) — both only after the user intervened twice |
+| `fix_symbol` / `fix_symbols` / `patch_group` / `insert_symbol` | **0** |
+| Hook firings | 50+, none of which blocked anything |
+
+This is the **same failure as the incident that motivated 0.1.6** —
+`insert_case` unused for a whole session. 0.1.6 shipped `REMINDER` as the fix.
+The reminder was present, correct, and read every time. It did not work.
+
+### Why it failed
+
+1. **`additionalContext` cannot block.** A warning that never stops anything
+   is wallpaper by the third repetition. Habituation was complete by phase 2
+   of 11.
+2. **It asks for a judgment.** *"check whether a tool fits better"* is
+   infinitely rationalisable — "not this one, this one's simple" is always
+   available. Under momentum, judgment defaults to the status quo.
+3. **Activation-energy asymmetry.** `Write`/`Edit` ship fully loaded in the
+   prompt; a deferred Bifrost tool costs an extra `ToolSearch` round trip
+   first. Every edit is a choice between a tool in hand and one to go fetch.
+4. **The tool descriptions argue against use in the modal case.**
+   `fix_symbol`: *"For a one-off fix you already have in front of you, edit it
+   yourself."* `fix_symbols`: *"you had to read the code anyway."* The
+   orchestrator's workflow is *always* read-then-edit, so those exclusions
+   swallow nearly every real case. Change #8 above ("a written criterion for
+   when **not** to use Bifrost") was implemented, and overshot.
+5. **The subagent path bypasses Bifrost entirely — and holds the volume.**
+   20 of the 54 files were delegated to subagents, each given a prose
+   instruction to *"read `<sibling>.py` first and match its conventions"* — a
+   hand-rolled, worse `model_from`. Measured: **~23,600 tokens/file via
+   subagent vs ~8,300 via `create_file`** (~2.8×, though the subagent also ran
+   the tests).
+
+### The fix
+
+**Gate the narrow case; leave the rest advisory.** PreToolUse supports
+`permissionDecision: "deny"` with a `permissionDecisionReason` fed back to the
+model. `hook_guard` currently only ever emits `additionalContext`.
+
+Deny — do not suggest — where the trigger is mechanical and false-positive
+free from the hook payload alone:
+
+- `Write` to a **non-existent** file whose extension matches ≥3 siblings in
+  the target directory → deny, naming the suggested
+  `create_file(model_from=<nearest sibling>)` in the reason.
+
+Everything else keeps today's advisory text. The goal is not to force volume
+through Bifrost; it is that **the one case with a clean mechanical trigger
+should not be left to a judgment call that empirically resolves to "no" 96%
+of the time.**
+
+### Second gap, same session
+
+`create_file` emits and walks away. The generated `src/argos/rbl.py` was
+essentially correct; the generated `tests/test_rbl.py` invented function
+signatures that did not exist and asserted the opposite of the specified
+contract. Both were caught only because the orchestrator ran the suite
+afterwards.
+
+That is the real functional difference against a subagent, which writes, runs
+and iterates. **An optional post-write verification command** — run it, and on
+failure return the output instead of reporting success — would close it, and
+matters *more*, not less, if instructions are to get shorter. In this session
+instruction detail was not the failure mode; the absent feedback loop was.
+
+---
+
 ## Things that are right and should not be touched
 
 - **Rollback via `git hash-object`** — the best decision in the plan. Dedup

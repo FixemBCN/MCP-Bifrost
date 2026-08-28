@@ -24,10 +24,14 @@ from .worker import DeepSeekWorker
 DB_PATH = Path(os.environ.get("BIFROST_DB", ".bifrost/history.db"))
 
 WHEN_NOT_TO_USE = (
-    "Use this when you have several similar transformations to make, or when "
-    "you can state the instruction WITHOUT having read the code. For a "
-    "one-off fix you already have in front of you, edit it yourself: the "
-    "context saving does not repay the round trip."
+    "Skip this only when the edit is too small for a symbol boundary to "
+    "matter — a one-line typo, a single config value, a comment. Anything "
+    "that changes what a function does should go through here even when "
+    "you already read the code: unlike a manual edit, this re-resolves the "
+    "symbol by name (immune to line drift from earlier edits landing in "
+    "the same file), validates syntax before writing, and is rollback-able "
+    "from a saved git blob. Having read the file first buys a manual edit "
+    "none of that."
 )
 
 TOOLS = [
@@ -35,11 +39,11 @@ TOOLS = [
         "name": "fix_symbols",
         "description": (
             "Apply ONE instruction across MANY symbols. This is the tool this "
-            "server exists for. For a single edit the saving is modest — you "
-            "had to read the code anyway to say what you wanted. The "
-            "order-of-magnitude win is a transformation stated once and "
-            "applied to symbols you never read: 'add a docblock to every "
-            "method here', 'switch every call to the new API'. "
+            "server exists for. For a single target, use fix_symbol instead — "
+            "the parallel worker calls here only pay off once there is more "
+            "than one. The order-of-magnitude win is a transformation stated "
+            "once and applied to symbols you never read: 'add a docblock to "
+            "every method here', 'switch every call to the new API'. "
             "Worker calls run in parallel, writes run in series, and each "
             "symbol is re-resolved by name just before its write, so earlier "
             "patches moving later offsets is not a problem."
@@ -106,6 +110,17 @@ TOOLS = [
                                    "credential to the worker. Only after "
                                    "seeing what it flagged and judging it a "
                                    "false positive. The override is recorded.",
+                },
+                "verify": {
+                    "type": "string",
+                    "description": "Optional shell command run after the "
+                                   "write lands, cwd the repo root — e.g. "
+                                   "'pytest tests/test_foo.py -q' or "
+                                   "'php -l path/to/file.php'. Non-zero exit "
+                                   "reverts the write and returns the "
+                                   "command's output instead of reporting "
+                                   "success. The one thing a subagent gets "
+                                   "for free by running the suite itself.",
                 },
             },
             "required": ["file_path", "symbol_name", "instruction"],
@@ -222,6 +237,17 @@ TOOLS = [
                                               "use as the structural "
                                               "exemplar. Strongly recommended."},
                 "allow_secrets": {"type": "boolean"},
+                "verify": {
+                    "type": "string",
+                    "description": "Optional shell command run after the "
+                                   "file is written, cwd the repo root — "
+                                   "e.g. 'pytest tests/test_foo.py -q'. "
+                                   "Non-zero exit deletes the file and "
+                                   "returns the command's output instead of "
+                                   "reporting success — catches a "
+                                   "syntactically fine file that is still "
+                                   "wrong, which no gate before this can see.",
+                },
             },
             "required": ["file_path", "instruction"],
         },
@@ -374,7 +400,7 @@ class Server:
             return self._ok(rid, {
                 "protocolVersion": agreed,
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "mcp-bifrost", "version": "0.1.6"},
+                "serverInfo": {"name": "mcp-bifrost", "version": "0.1.7"},
             })
 
         if method == "tools/list":
@@ -400,7 +426,8 @@ class Server:
                 out = self.engine.fix_symbol(
                     args["file_path"], args["symbol_name"],
                     args["instruction"], args.get("context"),
-                    bool(args.get("allow_secrets", False)))
+                    bool(args.get("allow_secrets", False)),
+                    args.get("verify"))
             elif name == "fix_range":
                 out = self.engine.fix_range(
                     args["file_path"], int(args["start_line"]),
@@ -421,7 +448,8 @@ class Server:
                 out = self.engine.create_file(
                     args["file_path"], args["instruction"],
                     args.get("model_from"),
-                    bool(args.get("allow_secrets", False)))
+                    bool(args.get("allow_secrets", False)),
+                    args.get("verify"))
             elif name == "patch_group":
                 out = self.engine.patch_group(args["operations"])
             elif name == "export_docs":

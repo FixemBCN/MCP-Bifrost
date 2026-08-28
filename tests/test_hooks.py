@@ -37,6 +37,89 @@ class HookGuardOutputTests(unittest.TestCase):
                       out["hookSpecificOutput"]["additionalContext"])
 
 
+class HookGuardDenyTests(unittest.TestCase):
+    """
+    RF-13's mechanical gate: `Write` to a file that does not exist, in a
+    directory where >=3 siblings already share its extension, is denied
+    rather than merely nudged — the one trigger the hook payload alone can
+    prove without any judgment call.
+    """
+
+    def setUp(self):
+        self._tmp = TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.dir = Path(self._tmp.name)
+
+    def _write_payload(self, file_path) -> dict:
+        return {"tool_name": "Write", "tool_input": {"file_path": str(file_path)}}
+
+    def test_denies_a_new_file_matching_an_established_pattern(self):
+        for name in ("alpha.py", "beta.py", "gamma.py"):
+            (self.dir / name).write_text("# fixture\n")
+        target = self.dir / "delta.py"
+
+        out = hook_guard_output(self._write_payload(target))
+
+        spec = out["hookSpecificOutput"]
+        self.assertEqual(spec.get("permissionDecision"), "deny")
+        self.assertIn("create_file", spec["permissionDecisionReason"])
+        self.assertIn("delta.py", spec["permissionDecisionReason"])
+
+    def test_names_the_most_similarly_named_sibling_as_model_from(self):
+        (self.dir / "widget_alpha.py").write_text("# fixture\n")
+        (self.dir / "widget_beta.py").write_text("# fixture\n")
+        (self.dir / "totally_unrelated.py").write_text("# fixture\n")
+        target = self.dir / "widget_gamma.py"
+
+        out = hook_guard_output(self._write_payload(target))
+
+        reason = out["hookSpecificOutput"]["permissionDecisionReason"]
+        self.assertIn("widget_", reason)
+        self.assertNotIn("totally_unrelated.py", reason)
+
+    def test_stays_advisory_below_the_sibling_threshold(self):
+        (self.dir / "alpha.py").write_text("# fixture\n")
+        (self.dir / "beta.py").write_text("# fixture\n")  # only 2, need 3
+        target = self.dir / "gamma.py"
+
+        out = hook_guard_output(self._write_payload(target))
+
+        self.assertNotIn("permissionDecision", out["hookSpecificOutput"])
+        self.assertIn("additionalContext", out["hookSpecificOutput"])
+
+    def test_stays_advisory_when_the_target_already_exists(self):
+        for name in ("alpha.py", "beta.py", "gamma.py"):
+            (self.dir / name).write_text("# fixture\n")
+        target = self.dir / "alpha.py"  # already exists — this is an edit
+
+        out = hook_guard_output(self._write_payload(target))
+
+        self.assertNotIn("permissionDecision", out["hookSpecificOutput"])
+
+    def test_stays_advisory_for_a_different_extension(self):
+        for name in ("alpha.py", "beta.py", "gamma.py"):
+            (self.dir / name).write_text("# fixture\n")
+        target = self.dir / "config.json"  # no .json siblings
+
+        out = hook_guard_output(self._write_payload(target))
+
+        self.assertNotIn("permissionDecision", out["hookSpecificOutput"])
+
+    def test_stays_advisory_for_a_non_write_tool(self):
+        for name in ("alpha.py", "beta.py", "gamma.py"):
+            (self.dir / name).write_text("# fixture\n")
+        target = self.dir / "delta.py"
+        payload = {"tool_name": "Edit", "tool_input": {"file_path": str(target)}}
+
+        out = hook_guard_output(payload)
+
+        self.assertNotIn("permissionDecision", out["hookSpecificOutput"])
+
+    def test_stays_advisory_with_no_payload_at_all(self):
+        out = hook_guard_output(None)
+        self.assertNotIn("permissionDecision", out["hookSpecificOutput"])
+
+
 class InitHookTests(unittest.TestCase):
 
     def setUp(self):
@@ -112,16 +195,19 @@ class MainDispatchTests(unittest.TestCase):
     one command meant to work with zero configuration.
     """
 
-    def _run(self, *argv: str) -> str:
+    def _run(self, *argv: str, stdin: str = "") -> str:
         old_argv = sys.argv
         old_stdout = sys.stdout
+        old_stdin = sys.stdin
         sys.argv = ["mcp-bifrost", *argv]
         sys.stdout = captured = io.StringIO()
+        sys.stdin = io.StringIO(stdin)  # not a tty: isatty() is False
         try:
             code = main()
         finally:
             sys.argv = old_argv
             sys.stdout = old_stdout
+            sys.stdin = old_stdin
         self.assertEqual(code, 0)
         return captured.getvalue()
 
@@ -129,6 +215,24 @@ class MainDispatchTests(unittest.TestCase):
         out = json.loads(self._run("hook-guard"))
         self.assertEqual(out["hookSpecificOutput"]["hookEventName"],
                          "PreToolUse")
+
+    def test_hook_guard_dispatch_denies_over_real_stdin(self):
+        """The stdin plumbing end to end: main() -> hook_guard() ->
+        _read_payload() -> hook_guard_output(), not just the pure function."""
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            for name in ("alpha.py", "beta.py", "gamma.py"):
+                (tmp_path / name).write_text("# fixture\n")
+            target = tmp_path / "delta.py"
+            payload = json.dumps({
+                "tool_name": "Write",
+                "tool_input": {"file_path": str(target)},
+            })
+
+            out = json.loads(self._run("hook-guard", stdin=payload))
+
+        self.assertEqual(out["hookSpecificOutput"].get("permissionDecision"),
+                         "deny")
 
     def test_init_hook_dispatch(self):
         with TemporaryDirectory() as tmp:

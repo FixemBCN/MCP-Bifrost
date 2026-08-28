@@ -182,9 +182,17 @@ class ToolDispatchTest(unittest.TestCase):
         self.server._call("fix_symbol", {
             "file_path": "a.py", "symbol_name": "Klass.method",
             "instruction": "rewrite it", "context": ["ctx"],
-            "allow_secrets": True})
+            "allow_secrets": True, "verify": "pytest -q"})
         name, args, kwargs = self.engine.calls[-1]
         self.assertEqual("fix_symbol", name)
-        self.assertEqual(("a.py", "Klass.method", "rewrite it", ["ctx"], True),
-                         args)
+        self.assertEqual(
+            ("a.py", "Klass.method", "rewrite it", ["ctx"], True, "pytest -q"),
+            args)
+
+    def test_an_omitted_verify_argument_reaches_the_engine_as_none(self):
+        self.server._call("create_file", {
+            "file_path": "n.py", "instruction": "write it"})
+        name, args, kwargs = self.engine.calls[-1]
+        self.assertEqual("create_file", name)
+        self.assertEqual(("n.py", "write it", None, False, None), args)
 

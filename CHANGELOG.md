@@ -8,6 +8,47 @@ the version was tagged.
 
 ---
 
+## 0.1.7 — 2026-08-27
+
+### Changed — RF-13: the hook gates the one mechanical case, and stops arguing against itself
+
+Field evidence from a full build session on another project (Argos,
+2026-08-27): 54 files created, 2 via Bifrost (3.7%), zero
+`fix_symbol`/`fix_symbols`/`patch_group`/`insert_symbol`, with 0.1.6's hook
+installed and firing 50+ times without blocking anything. Same failure the
+hook was shipped to fix — see docs/critical-review.md, RF-13, for the full
+finding.
+
+`hook-guard` now reads the `PreToolUse` payload from stdin and denies one
+narrow, mechanical case outright instead of only nudging: a `Write` to a
+file that does not exist yet, in a directory where three or more siblings
+already share its extension. The denial names the suggested
+`create_file(model_from=<nearest sibling>)` in `permissionDecisionReason`.
+Everything else stays advisory — the trigger only fires where the hook
+payload alone proves the case, with no judgment call involved.
+
+`fix_symbol` and `fix_symbols`' descriptions previously told the model to
+hand-edit in exactly the case that matters most: "you already read the
+code, so edit it yourself." Since the orchestrator's workflow is always
+read-then-edit, that exclusion swallowed nearly every real case. Reworded to
+argue from what a manual edit gives up (offset re-resolution, a syntax
+check before writing, a rollback blob) rather than from context already
+spent.
+
+### Added — optional post-write `verify` on `create_file` and `fix_symbol`
+
+Every gate before this one checks that a write is syntactically sound, not
+that it is correct. In the same Argos session, a `create_file`-generated
+test invented function signatures that did not exist and asserted the
+opposite of the specified contract — caught only because the orchestrator
+happened to run the suite afterwards. `verify` closes that gap on purpose:
+pass a shell command, run with the repo root as its working directory, and
+a nonzero exit reverts the write (deletes the file for `create_file`,
+restores the pre-patch blob for `fix_symbol`) and returns the command's
+output instead of reporting success.
+
+---
+
 ## 0.1.6 — 2026-08-25
 
 ### Added — `mcp-bifrost init-hook`, so the deferred-tool nudge ships with the package
