@@ -301,12 +301,29 @@ the nudge travels with the repo instead of living only on one machine.
 
 A reminder alone turned out not to be enough — a full build session with the
 hook installed and firing 50+ times still routed 96% of new files through a
-raw `Write` (see docs/critical-review.md, RF-13). So the hook also *blocks*
-the one case its payload alone can prove without a judgment call: `Write` to
-a file that does not exist yet, in a directory where three or more siblings
-already share its extension. That gets denied outright, naming the
-suggested `create_file(model_from=<nearest sibling>)`. Everything else stays
-advisory.
+raw `Write` (see docs/critical-review.md, RF-13). A later session settled
+it: asked directly, the client admitted it was not using the tools, loaded
+them, made one call, then hand-edited a new switch case, two new functions
+and two method rewrites anyway, with the reminder firing on every one. Text
+that has already been read and agreed with does not change the next
+decision.
+
+So the hook *blocks* two cases outright:
+
+- **An `Edit` or `Write` to an existing file this server adapts** (`.php`,
+  `.py`) inside a project whose `.mcp.json` registers `bifrost`. The denial
+  names the tool for each shape — `insert_case`, `insert_symbol`,
+  `fix_symbol`, `fix_symbols`, `fix_range`, `patch_group`.
+- **A `Write` creating a file that does not exist yet**, in a directory
+  where three or more siblings already share its extension, naming the
+  suggested `create_file(model_from=<nearest sibling>)`.
+
+Everything else stays advisory. The first gate reads its scope off disk, so
+`--global` is safe: a `.php` or `.py` file in a project that never
+configured this server is never blocked. When an edit genuinely has no
+symbol to address, `touch .bifrost/hook-override` lets the next one through
+— it is consumed on use, so it buys one edit rather than a silent
+session-wide opt-out.
 
 Or from source, without installing:
 

@@ -8,6 +8,65 @@ the version was tagged.
 
 ---
 
+## 0.1.8 — 2026-08-29
+
+### Changed — the hook gates the case the reminder kept losing: editing an adapted file
+
+0.1.7 denied one shape, a `Write` creating a new file among established
+siblings. Everything else — every `Edit` — still got `additionalContext`
+and nothing more. A second field session showed what that costs. Working in
+a project with this server configured, the orchestrator was asked directly
+whether it was using the tools, admitted it was not, loaded the schemas,
+made exactly one `fix_symbols` call, and then hand-edited a new switch
+case, two new functions beside existing ones and two full method rewrites
+in `.php` files — with the reminder firing on every one of those calls.
+
+The lesson is not that the reminder was badly worded. It had already been
+read, agreed with, and acted on once in that same session. Advisory text
+does not survive the next decision, so the gate stops depending on it.
+
+`hook_guard` now denies a second trigger: any `Edit` or `Write` to an
+**existing** file whose extension this server adapts (`ADAPTED_EXTENSIONS`,
+currently `.php` and `.py`), when the file sits inside a project whose
+`.mcp.json` registers a server named `bifrost`. The
+`permissionDecisionReason` maps each edit shape to the tool that does it —
+`insert_case`, `insert_symbol`, `fix_symbol`, `fix_symbols`, `fix_range`,
+`patch_group` — rather than saying "use bifrost", and reminds the reader
+the gate applies to every later edit in the session, not just this one.
+
+Two things keep this from being a nuisance:
+
+- **Scope is read off disk.** `_bifrost_project_root` walks up from the
+  target for a `.mcp.json` that actually declares this server. A `.php` or
+  `.py` file in a project that never configured mcp-bifrost is never
+  blocked, so the hook is safe to install globally (`init-hook --global`).
+  Detection is by configuration rather than a live connection because a
+  `PreToolUse` hook is a short-lived process with no view of the client's
+  MCP session.
+- **There is an exit.** `touch <project>/.bifrost/hook-override` lets the
+  next manual edit through and is consumed on use, so it buys one edit and
+  not a silent session-wide opt-out. A gate with no exit is one that gets
+  removed wholesale the first time it is wrong.
+
+`ADAPTED_EXTENSIONS` is duplicated in `hooks.py` rather than imported from
+`engine.ADAPTERS`, because this module loads on every `Edit` and `Write` in
+the session and `engine` pulls the worker, the gates and the patcher in
+behind it. `AdaptedExtensionsSyncTests` asserts the two stay equal, so
+adding an adapter and forgetting the constant fails a test instead of
+quietly leaving the new language ungated.
+
+### Fixed — the new-file gate denied extensions `create_file` cannot produce
+
+0.1.7's sibling gate keyed on "three or more files share this extension"
+without asking whether the extension was one this server adapts. Writing a
+new `.md` file into a directory of other `.md` files was therefore denied
+outright and told to use `create_file`, which has no Markdown adapter and
+would have rejected it — a block with no way through it. Found while
+testing the 0.1.8 gate against a real project, where it blocked an ordinary
+planning document. The gate now requires `ADAPTED_EXTENSIONS` as well.
+
+---
+
 ## 0.1.7 — 2026-08-27
 
 ### Changed — RF-13: the hook gates the one mechanical case, and stops arguing against itself

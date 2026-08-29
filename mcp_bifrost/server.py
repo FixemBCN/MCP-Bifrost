@@ -400,7 +400,7 @@ class Server:
             return self._ok(rid, {
                 "protocolVersion": agreed,
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "mcp-bifrost", "version": "0.1.7"},
+                "serverInfo": {"name": "mcp-bifrost", "version": "0.1.8"},
             })
 
         if method == "tools/list":

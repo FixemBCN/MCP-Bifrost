@@ -105,6 +105,16 @@ class HookGuardDenyTests(unittest.TestCase):
 
         self.assertNotIn("permissionDecision", out["hookSpecificOutput"])
 
+    def test_stays_advisory_for_an_unadapted_extension(self):
+        """The sibling gate must not fire for an extension create_file has no adapter for — denying a new Markdown file among Markdown siblings would block the Write and then name a tool that cannot produce it."""
+        for name in ("alpha.md", "beta.md", "gamma.md"):
+            (self.dir / name).write_text("# fixture\n")
+        target = self.dir / "delta.md"
+
+        out = hook_guard_output(self._write_payload(target))
+
+        self.assertNotIn("permissionDecision", out["hookSpecificOutput"])
+
     def test_stays_advisory_for_a_non_write_tool(self):
         for name in ("alpha.py", "beta.py", "gamma.py"):
             (self.dir / name).write_text("# fixture\n")
@@ -118,6 +128,85 @@ class HookGuardDenyTests(unittest.TestCase):
     def test_stays_advisory_with_no_payload_at_all(self):
         out = hook_guard_output(None)
         self.assertNotIn("permissionDecision", out["hookSpecificOutput"])
+
+
+class AdaptedFileDenyTests(unittest.TestCase):
+    """
+    the gate the field evidence demanded — an existing .php/.py file inside a project whose .mcp.json registers this server. RF-13's new-file gate never fired for these, so every hand-edited switch case and method rewrite in the incident got only advisory text.
+    """
+
+    def setUp(self):
+        self._tmp = TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        (self.root / ".mcp.json").write_text(json.dumps({"mcpServers": {"bifrost": {"command": "python3"}}}))
+        (self.root / "src").mkdir()
+        self.src = self.root / "src" / "calc.php"
+        self.src.write_text("<?php\n")
+
+    def _decision(self, payload):
+        return hook_guard_output(payload)["hookSpecificOutput"].get("permissionDecision")
+
+    def _edit(self, path, **extra):
+        return {"tool_name": "Edit", "tool_input": {"file_path": str(path)}, **extra}
+
+    def test_denies_an_edit_to_an_existing_adapted_file(self):
+        self.assertEqual(self._decision(self._edit(self.src)), "deny")
+
+    def test_reason_names_the_tool_for_each_shape(self):
+        reason = hook_guard_output(self._edit(self.src))["hookSpecificOutput"]["permissionDecisionReason"]
+        for shape in ("insert_case", "insert_symbol", "fix_symbol", "fix_range", "patch_group"):
+            self.assertIn(shape, reason)
+
+    def test_scoped_to_projects_that_register_the_server(self):
+        # this is the guarantee that the globally installed hook cannot hold unrelated projects hostage
+        with TemporaryDirectory() as other:
+            other_root = Path(other)
+            (other_root / "calc.php").write_text("<?php\n")
+            self.assertIsNone(self._decision(self._edit(other_root / "calc.php")))
+
+    def test_only_adapted_extensions(self):
+        js = self.root / "src" / "app.js"
+        js.write_text("// fixture\n")
+        self.assertIsNone(self._decision(self._edit(js)))
+
+    def test_only_edit_and_write_tools(self):
+        payload = {"tool_name": "Read", "tool_input": {"file_path": str(self.src)}}
+        self.assertIsNone(self._decision(payload))
+
+    def test_resolves_a_relative_path_against_cwd(self):
+        payload = self._edit("calc.php", cwd=str(self.root / "src"))
+        self.assertEqual(self._decision(payload), "deny")
+
+    def test_override_is_consumed_by_one_edit(self):
+        override_dir = self.root / ".bifrost"
+        override_dir.mkdir()
+        marker = override_dir / "hook-override"
+        marker.touch()
+        self.assertIsNone(self._decision(self._edit(self.src)))
+        self.assertFalse(marker.exists())
+        self.assertEqual(self._decision(self._edit(self.src)), "deny")
+
+    def test_write_to_an_existing_adapted_file_is_also_denied(self):
+        payload = {"tool_name": "Write", "tool_input": {"file_path": str(self.src)}}
+        self.assertEqual(self._decision(payload), "deny")
+
+
+class AdaptedExtensionsSyncTests(unittest.TestCase):
+    """
+    hooks.ADAPTED_EXTENSIONS is duplicated rather than imported, because hooks.py is loaded on every Edit and Write in the session and mcp_bifrost.engine pulls the worker, the gates and the patcher in behind it. This test is what makes that duplication safe: add an adapter and forget the constant, and it fails here rather than silently letting the new language through ungated.
+    """
+
+    def test_matches_the_adapter_registry(self):
+        try:
+            import mcp_bifrost.engine
+        except ImportError:
+            self.skipTest("mcp_bifrost.engine unavailable")
+        from mcp_bifrost.hooks import ADAPTED_EXTENSIONS
+        registered = set()
+        for adapter in mcp_bifrost.engine.ADAPTERS.values():
+            registered.update(adapter.extensions)
+        self.assertEqual(registered, set(ADAPTED_EXTENSIONS))
 
 
 class InitHookTests(unittest.TestCase):
