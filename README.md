@@ -325,6 +325,30 @@ symbol to address, `touch .bifrost/hook-override` lets the next one through
 — it is consumed on use, so it buys one edit rather than a silent
 session-wide opt-out.
 
+#### If you develop this server, install the hook from a `main` worktree
+
+The hook is enforced, global, and — installed editable from your development
+checkout — it runs whatever branch that checkout happens to be on. Switching
+to a feature branch then silently changes the gate for every other project on
+the machine, which is exactly the class of surprise this tool exists to
+remove. Keep a second worktree pinned to `main` and point the install at that
+instead:
+
+```bash
+git worktree add ../MCP-Bifrost-main main
+pipx install --force --editable ../MCP-Bifrost-main
+```
+
+Development continues in the original checkout, on any branch, with no effect
+on the live hook. After merging to `main`, refresh the worktree deliberately:
+
+```bash
+git -C ../MCP-Bifrost-main pull       # editable install: no reinstall needed
+```
+
+The same applies to any `.mcp.json` that launches the server by path: point
+its `PYTHONPATH` at the `main` worktree, not at the checkout you develop in.
+
 Or from source, without installing:
 
 ```bash
